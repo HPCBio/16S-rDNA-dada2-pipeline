@@ -31,8 +31,8 @@ params.trimFor = false
 params.trimRev = false
 
 // truncating final length
-params.truncFor = false
-params.truncRev = false
+params.truncFor = 250
+params.truncRev = 250
 
 params.reference = false
 
@@ -116,8 +116,8 @@ process filterAndTrim {
     # TODO: add forward and reverse hard-trimming (see trimLeft)
     filterAndTrim(fwd="${reads[0]}", filt=paste0("${pairId}", ".R1.filtered.fastq.gz"),
                   rev="${reads[1]}", filt.rev=paste0("${pairId}", ".R2.filtered.fastq.gz"),
-                  trimLeft = c(0,0),
-                  truncLen=c(240,240),
+                  trimLeft = c(${params.trimFor},${params.trimRev}),
+                  truncLen=c(${params.truncFor},${params.truncRev}),
                   maxEE=2,
                   truncQ=11,
                   maxN=0,
