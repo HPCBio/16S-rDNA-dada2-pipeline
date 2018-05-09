@@ -17,12 +17,12 @@
 import java.text.SimpleDateFormat
 
 // version
-version = 0.2
+version = 0.3
 
 timestamp = new SimpleDateFormat("yyyy-MM-dd").format(new java.util.Date())
 
 // Pass this in to run
-params.reads = "./raw-seq/*_R{1,2}.paired.fastq.gz"
+params.reads = "./raw-seq/*_R{1,2}.fastq.gz"
 params.outdir = "./" + timestamp + "-dada2"
 params.ticket = 0
 
@@ -35,6 +35,7 @@ params.truncFor = 250
 params.truncRev = 250
 
 params.reference = false
+params.species = false
 
 if ( params.trimFor == false ) {
     exit 1, "Must set length of R1 (--trimFor) that needs to be trimmed (set 0 if no trimming is needed)"
@@ -53,7 +54,7 @@ if ( params.reference == false ) {
 Channel
     .fromFilePairs( params.reads )
     .ifEmpty { error "Cannot find any reads matching: ${params.reads}" }
-    .set { dada2ReadPairs }
+    .into { dada2ReadPairsToQual; dada2ReadPairs }
 
 refFile = file(params.reference)
 
@@ -73,7 +74,10 @@ Ticket       : ${params.ticket}
 dada2        : ${dada2Mod}
 Trim-For     : ${params.trimFor}
 Trim-Rev     : ${params.trimRev}
+Trunc-For    : ${params.truncFor}
+Trunc-Rev    : ${params.truncRev}
 Reference    : ${params.reference}
+Species      : ${params.species}
 Current home : $HOME
 Current user : $USER
 Current path : $PWD
@@ -92,6 +96,41 @@ Output dir   : ${params.outdir}
 // TODO: Note we need to hard trim reads to remove the primers at the 5' end,
 // these mess with dada2 (overpredict chimeras)
 
+process plotQual {
+    cpus 2
+    executor 'slurm'
+    queue myQueue
+    memory "12 GB"
+    module dada2Mod
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
+
+    input:
+    file allReads from dada2ReadPairsToQual.flatMap({ it[1] }).collect()
+
+    output:
+    file "R1.pdf" into forQualPDF
+    file "R2.pdf" into revQualPDF
+
+    script:
+    """
+    #!/usr/bin/env Rscript
+    library(dada2); packageVersion("dada2")
+
+    # Forward Reads
+    pdf("R1.pdf")
+    fnFs <- list.files('.', pattern="_R1_*.fastq*", full.names = TRUE)
+    plotQualityProfile(fnFs, aggregate = TRUE)
+    dev.off()
+
+    # Reverse Reads
+    pdf("R2.pdf")
+    fnRs <- list.files('.', pattern="_R2_*.fastq*", full.names = TRUE)
+    plotQualityProfile(fnRs, aggregate = TRUE)
+    dev.off()
+    """
+}
+
+
 process filterAndTrim {
     cpus 4
     executor 'slurm'
@@ -107,6 +146,7 @@ process filterAndTrim {
     set val(pairId), "*.R1.filtered.fastq.gz", "*.R2.filtered.fastq.gz" into filteredReads
     file "*.R1.filtered.fastq.gz" into forReads
     file "*.R2.filtered.fastq.gz" into revReads
+    file "*.trimmed.txt" into trimTracking
 
     script:
     """
@@ -114,7 +154,7 @@ process filterAndTrim {
     library(dada2); packageVersion("dada2")
 
     # TODO: add forward and reverse hard-trimming (see trimLeft)
-    filterAndTrim(fwd="${reads[0]}", filt=paste0("${pairId}", ".R1.filtered.fastq.gz"),
+    out <- filterAndTrim(fwd="${reads[0]}", filt=paste0("${pairId}", ".R1.filtered.fastq.gz"),
                   rev="${reads[1]}", filt.rev=paste0("${pairId}", ".R2.filtered.fastq.gz"),
                   trimLeft = c(${params.trimFor},${params.trimRev}),
                   truncLen=c(${params.truncFor},${params.truncRev}),
@@ -124,8 +164,44 @@ process filterAndTrim {
                   compress=TRUE,
                   verbose=TRUE,
                   multithread=${task.cpus})
+
+    write.csv(out, paste0("${pairId}", ".trimmed.txt"))
     """
 }
+
+process mergeTrimmedTable {
+    cpus 2
+    executor 'slurm'
+    queue myQueue
+    memory "8 GB"
+    module dada2Mod
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
+
+    input:
+    file "*.trimmed.txt" from trimTracking.collect()
+
+    output:
+    file "all.trimmed.txt"
+
+    script:
+    """
+    #!/usr/bin/env Rscript
+    library(dplyr); packageVersion("dplyr")
+
+    # TODO: add forward and reverse hard-trimming (see trimLeft)
+    trimmedFiles <- list.files(path = '.', pattern = '*.trimmed.txt')
+    trimmed <- lapply(trimmedFiles, function (x) read.csv(x))
+    all.trimmed <- bind_rows(trimmed)
+    colnames(all.trimmed)[1] <- "SampleID"
+
+    write.table(all.trimmed, "all.trimmed.txt",
+        row.names = FALSE,
+        quote = FALSE,
+        sep="\t")
+    """
+}
+
+// TODO: process to merge individual tables
 
 /*
  *
@@ -162,6 +238,9 @@ process LearnErrorsFor {
 
     # Learn forward error rates
     errF <- learnErrors(filtFs, nread=1e6, multithread=${task.cpus})
+    pdf("R1.err.pdf")
+    plotErrors(errF, nominalQ=TRUE)
+    dev.off()
     saveRDS(errF, "errorsF.RDS")
     """
 }
@@ -195,6 +274,9 @@ process LearnErrorsRev {
 
     # Learn forward error rates
     errR <- learnErrors(filtRs, nread=1e6, multithread=${task.cpus})
+    pdf("R2.err.pdf")
+    plotErrors(errR, nominalQ=TRUE)
+    dev.off()
     saveRDS(errR, "errorsR.RDS")
     """
 }
@@ -268,6 +350,7 @@ process SequenceTable {
 
     output:
     file "seqtab.RDS" into seqTable
+    file "mergers.RDS" into mergers
 
     script:
     '''
@@ -280,7 +363,9 @@ process SequenceTable {
     mergers <- lapply(mergerFiles, function (x) readRDS(x))
     names(mergers) <- pairIds
     seqtab <- makeSequenceTable(mergers)
+
     saveRDS(seqtab, "seqtab.RDS")
+    saveRDS(mergers, "mergers.RDS")
     '''
 }
 
@@ -290,40 +375,83 @@ process SequenceTable {
  *
  */
 
-process ChimeraTaxonomy {
-    cpus 12
-    executor 'slurm'
-    queue myQueue
-    memory "48 GB"
-    module dada2Mod
-    publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "link"
+if (params.species) {
+    speciesFile = file(params.species)
+    process ChimeraTaxonomySpecies {
+        cpus 24
+        executor 'slurm'
+        queue myQueue
+        memory "48 GB"
+        module dada2Mod
+        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "link"
 
-    input:
-    file st from seqTable
-    file ref from refFile
+        input:
+        file st from seqTable
+        file ref from refFile
+        file sp from speciesFile
 
-    output:
-    file "seqtab_final.RDS" into seqTableFinal
-    file "tax_final.RDS" into taxFinal
+        output:
+        file "seqtab_final.RDS" into seqTableFinal
+        file "tax_final.RDS" into taxFinal
 
-    script:
-    """
-    #!/usr/bin/env Rscript
-    library(dada2)
-    packageVersion("dada2")
+        script:
+        """
+        #!/usr/bin/env Rscript
+        library(dada2)
+        packageVersion("dada2")
 
-    st.all <- readRDS("${st}")
+        st.all <- readRDS("${st}")
 
-    # Remove chimeras
-    seqtab <- removeBimeraDenovo(st.all, method="consensus", multithread=${task.cpus})
+        # Remove chimeras
+        seqtab <- removeBimeraDenovo(st.all, method="consensus", multithread=${task.cpus})
 
-    # Assign taxonomy
-    tax <- assignTaxonomy(seqtab, "${ref}", multithread=${task.cpus})
+        # Assign taxonomy
+        tax <- assignTaxonomy(seqtab, "${ref}", multithread=${task.cpus})
+        tax <- addSpecies(tax, "${sp}")
 
-    # Write to disk
-    saveRDS(seqtab, "seqtab_final.RDS")
-    saveRDS(tax, "tax_final.RDS")
-    """
+        # Write to disk
+        saveRDS(seqtab, "seqtab_final.RDS")
+        saveRDS(tax, "tax_final.RDS")
+        """
+    }
+
+} else {
+
+    process ChimeraTaxonomy {
+        cpus 24
+        executor 'slurm'
+        queue myQueue
+        memory "48 GB"
+        module dada2Mod
+        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "link"
+
+        input:
+        file st from seqTable
+        file ref from refFile
+
+        output:
+        file "seqtab_final.RDS" into seqTableFinal
+        file "tax_final.RDS" into taxFinal
+
+        script:
+        """
+        #!/usr/bin/env Rscript
+        library(dada2)
+        packageVersion("dada2")
+
+        st.all <- readRDS("${st}")
+
+        # Remove chimeras
+        seqtab <- removeBimeraDenovo(st.all, method="consensus", multithread=${task.cpus})
+
+        # Assign taxonomy
+        tax <- assignTaxonomy(seqtab, "${ref}", multithread=${task.cpus})
+
+        # Write to disk
+        saveRDS(seqtab, "seqtab_final.RDS")
+        saveRDS(tax, "tax_final.RDS")
+        """
+    }
 }
 
 process BiomFile {
@@ -347,7 +475,8 @@ process BiomFile {
     library(biomformat)
     packageVersion("biomformat")
     seqtab <- readRDS("${sTable}")
-    st.biom <- make_biom(t(seqtab))
+    taxtab <- readRDS("${tTable}")
+    st.biom <- make_biom(t(seqtab), observation_metadata = taxtab)
     write_biom(st.biom, "dada2.biom")
     """
 }
