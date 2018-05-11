@@ -1,23 +1,10 @@
 #!/usr/bin/env nextflow
-/*
-* USAGE: nextflow run foo.nf -qs 8
-* Note that "-qs" is similar to "#PBS -t" and will only run a specified # of jobs at a time.
-* This script creates hard links to data that exists in nextflow's work directory for everything
-*/
 
-/*
- * Set parameter values here. Only change the values within quotations
- * Many of the values already present will be okay to use, but make sure the pathes
- * are correct for your dataset.
-*/
-
-/* Path to base project results directory */
-/* TODO: Need exception check? */
-
+// Some help with time stamps
 import java.text.SimpleDateFormat
 
 // version
-version = 0.3
+version = 0.4
 
 timestamp = new SimpleDateFormat("yyyy-MM-dd").format(new java.util.Date())
 
@@ -26,13 +13,23 @@ params.reads = "./raw-seq/*_R{1,2}.fastq.gz"
 params.outdir = "./" + timestamp + "-dada2"
 params.ticket = 0
 
-// removing primers
+// Trimming
 params.trimFor = false
 params.trimRev = false
+params.truncFor = 0
+params.truncRev = 0
+params.maxEEFor = 2
+params.maxEERev = 2
+params.truncQ = 2
+params.maxN = 0
+params.maxLen = "Inf"
+params.minLen = 20
+params.rmPhiX = "FALSE"
 
-// truncating final length
-params.truncFor = 250
-params.truncRev = 250
+// Merging
+params.minOverlap = 20
+params.maxMismatch = 0
+params.trimOverhang = "FALSE" // This should be true with some sequences (V4)
 
 params.reference = false
 params.species = false
@@ -66,6 +63,7 @@ dada2Mod = 'R-lib/3.4.2'
 
 myQueue = 'normal'
 
+// TODO: maybe have a way to check the params and fill this out automatically?
 runInfo = """
 
 ====================================
@@ -155,17 +153,21 @@ process filterAndTrim {
     #!/usr/bin/env Rscript
     library(dada2); packageVersion("dada2")
 
-    # TODO: add forward and reverse hard-trimming (see trimLeft)
-    out <- filterAndTrim(fwd="${reads[0]}", filt=paste0("${pairId}", ".R1.filtered.fastq.gz"),
-                  rev="${reads[1]}", filt.rev=paste0("${pairId}", ".R2.filtered.fastq.gz"),
-                  trimLeft = c(${params.trimFor},${params.trimRev}),
-                  truncLen=c(${params.truncFor},${params.truncRev}),
-                  maxEE=2,
-                  truncQ=11,
-                  maxN=0,
-                  compress=TRUE,
-                  verbose=TRUE,
-                  multithread=${task.cpus})
+    out <- filterAndTrim(fwd = "${reads[0]}",
+                        filt = paste0("${pairId}", ".R1.filtered.fastq.gz"),
+                        rev = "${reads[1]}",
+                        filt.rev = paste0("${pairId}", ".R2.filtered.fastq.gz"),
+                        trimLeft = c(${params.trimFor},${params.trimRev}),
+                        truncLen = c(${params.truncFor},${params.truncRev}),
+                        maxEE = c(${params.maxEEFor},${params.maxEERev}),
+                        truncQ = ${params.truncQ},
+                        maxN = ${params.maxN},
+                        rm.phix = ${params.rmPhiX},
+                        maxLen = ${params.maxLen},
+                        minLen = ${params.minLen},
+                        compress = TRUE,
+                        verbose = TRUE,
+                        multithread = ${task.cpus})
 
     write.csv(out, paste0("${pairId}", ".trimmed.txt"))
     """
@@ -190,15 +192,12 @@ process mergeTrimmedTable {
     #!/usr/bin/env Rscript
     trimmedFiles <- list.files(path = '.', pattern = '*.trimmed.txt')
     sample.names <- sub('.trimmed.txt', '', trimmedFiles)
-    # this could be dplyred...
     trimmed <- do.call("rbind", lapply(trimmedFiles, function (x) as.data.frame(read.csv(x))))
     colnames(trimmed)[1] <- "Sequence"
     trimmed\$SampleID <- sample.names
     write.csv(trimmed, "all.trimmed.csv", row.names = FALSE)
     """
 }
-
-// TODO: process to merge individual tables
 
 /*
  *
@@ -207,7 +206,6 @@ process mergeTrimmedTable {
  */
 
 // TODO: combine For and Rev process to reduce code duplication?
-// TODO: note that the sample names step isn't used here
 
 process LearnErrorsFor {
     cpus 8
@@ -321,7 +319,11 @@ process SampleInferDerepAndMerge {
     derepR <- derepFastq("${filtRev}")
     ddR <- dada(derepR, err=errR, multithread=${task.cpus})
 
-    merger <- mergePairs(ddF, derepF, ddR, derepR)
+    merger <- mergePairs(ddF, derepF, ddR, derepR,
+        minOverlap = ${params.minOverlap},
+        maxMismatch = ${params.maxMismatch},
+        trimOverhang = TRUE
+        )
 
     # TODO: make this a single item list with ID as the name, this is lost
     # further on
@@ -425,7 +427,7 @@ if (params.species) {
         file sp from speciesFile
 
         output:
-        file "seqtab_final.RDS" into seqTableFinal,seqTableFinalTracking
+        file "seqtab_final.RDS" into seqTableFinal,seqTableFinalTree,seqTableFinalTracking
         file "tax_final.RDS" into taxFinal
 
         script:
@@ -464,7 +466,7 @@ if (params.species) {
         file ref from refFile
 
         output:
-        file "seqtab_final.RDS" into seqTableFinal,seqTableFinalTracking
+        file "seqtab_final.RDS" into seqTableFinal,seqTableFinalTree,seqTableFinalTracking
         file "tax_final.RDS" into taxFinal
 
         script:
@@ -486,6 +488,61 @@ if (params.species) {
         saveRDS(tax, "tax_final.RDS")
         """
     }
+}
+
+/*
+ *
+ * Step 9: Construct phylogenetic tree
+ *
+ */
+
+// TODO: break into more steps?  phangorn takes a long time...
+
+process AlignAndGenerateTree {
+    cpus 12
+    executor 'slurm'
+    queue myQueue
+    memory "12 GB"
+    module dada2Mod
+    publishDir "${params.outdir}/dada2-Alignment", mode: "link"
+
+    input:
+    file sTable from seqTableFinalTree
+
+    output:
+    file "aligned_seqs.fasta" into alnFile
+    file "phangorn.tree.RDS" into treeRDS
+    file "tree.newick" into treeFile
+    file "tree.GTR.newick" into treeGTRFile
+
+    script:
+    """
+    #!/usr/bin/env Rscript
+    library(dada2)
+    library(DECIPHER)
+    library(phangorn)
+
+    seqs <- getSequences(readRDS("${sTable}"))
+    names(seqs) <- seqs # This propagates to the tip labels of the tree
+    alignment <- AlignSeqs(DNAStringSet(seqs),
+                           anchor=NA,
+                           processors = ${task.cpus})
+    writeXStringSet(alignment, "aligned_seqs.fasta")
+
+    # TODO: optimize this, or maybe split into a second step?
+    phang.align <- phyDat(as(alignment, "matrix"), type="DNA")
+    dm <- dist.ml(phang.align)
+    treeNJ <- NJ(dm) # Note, tip order != sequence order
+    fit = pml(treeNJ, data=phang.align)
+    write.tree(fit\$tree, file = "tree.newick")
+
+    ## negative edges length changed to 0!
+    fitGTR <- update(fit, k=4, inv=0.2)
+    fitGTR <- optim.pml(fitGTR, model="GTR", optInv=TRUE, optGamma=TRUE,
+                          rearrangement = "stochastic", control = pml.control(trace = 0))
+    saveRDS(fitGTR, "phangorn.tree.RDS")
+    write.tree(fitGTR\$tree, file = "tree.GTR.newick")
+    """
 }
 
 process BiomFile {
@@ -517,7 +574,7 @@ process BiomFile {
 
 /*
  *
- * Step 9: Track reads
+ * Step 10: Track reads
  *
  */
 
