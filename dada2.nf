@@ -37,6 +37,9 @@ params.truncRev = 250
 params.reference = false
 params.species = false
 
+// NYI, for dada sample inference pooling (requires all samples)
+params.pool = false
+
 if ( params.trimFor == false ) {
     exit 1, "Must set length of R1 (--trimFor) that needs to be trimmed (set 0 if no trimming is needed)"
 }
@@ -130,7 +133,6 @@ process plotQual {
     """
 }
 
-
 process filterAndTrim {
     cpus 4
     executor 'slurm'
@@ -178,26 +180,21 @@ process mergeTrimmedTable {
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
 
     input:
-    file "*.trimmed.txt" from trimTracking.collect()
+    file trimData from trimTracking.collect()
 
     output:
-    file "all.trimmed.txt"
+    file "all.trimmed.csv" into trimmedReadTracking
 
     script:
     """
     #!/usr/bin/env Rscript
-    library(dplyr); packageVersion("dplyr")
-
-    # TODO: add forward and reverse hard-trimming (see trimLeft)
     trimmedFiles <- list.files(path = '.', pattern = '*.trimmed.txt')
-    trimmed <- lapply(trimmedFiles, function (x) read.csv(x))
-    all.trimmed <- bind_rows(trimmed)
-    colnames(all.trimmed)[1] <- "SampleID"
-
-    write.table(all.trimmed, "all.trimmed.txt",
-        row.names = FALSE,
-        quote = FALSE,
-        sep="\t")
+    sample.names <- sub('.trimmed.txt', '', trimmedFiles)
+    # this could be dplyred...
+    trimmed <- do.call("rbind", lapply(trimmedFiles, function (x) as.data.frame(read.csv(x))))
+    colnames(trimmed)[1] <- "Sequence"
+    trimmed\$SampleID <- sample.names
+    write.csv(trimmed, "all.trimmed.csv", row.names = FALSE)
     """
 }
 
@@ -209,7 +206,8 @@ process mergeTrimmedTable {
  *
  */
 
-// TODO: combine For and Rev process to reduce code duplication
+// TODO: combine For and Rev process to reduce code duplication?
+// TODO: note that the sample names step isn't used here
 
 process LearnErrorsFor {
     cpus 8
@@ -287,6 +285,8 @@ process LearnErrorsRev {
  *
  */
 
+// TODO: allow serial processing of this step?
+
 process SampleInferDerepAndMerge {
     cpus 4
     executor 'slurm'
@@ -302,6 +302,8 @@ process SampleInferDerepAndMerge {
 
     output:
     file "*.merged.RDS" into mergedReads
+    file "*.ddF.RDS" into dadaFor
+    file "*.ddR.RDS" into dadaRev
 
     script:
     """
@@ -324,11 +326,42 @@ process SampleInferDerepAndMerge {
     # TODO: make this a single item list with ID as the name, this is lost
     # further on
     saveRDS(merger, paste("${pairId}", "merged", "RDS", sep="."))
-
-    # Construct sequence table and remove chimeras
-    # seqtab <- makeSequenceTable(mergers)
-    # saveRDS(seqtab, "/path/to/run1/output/seqtab.rds") # CHANGE ME to where you want sequence table saved
+    saveRDS(ddF, paste("${pairId}", "ddF", "RDS", sep="."))
+    saveRDS(ddR, paste("${pairId}", "ddR", "RDS", sep="."))
     """
+}
+
+// TODO: step may be obsolete if we run the above serially
+
+process mergeDadaRDS {
+    cpus 2
+    executor 'slurm'
+    queue myQueue
+    memory "8 GB"
+    module dada2Mod
+    publishDir "${params.outdir}/dada2-Inference", mode: "link"
+
+    input:
+    file ddFs from dadaFor.collect()
+    file ddRs from dadaRev.collect()
+
+    output:
+    file "all.ddF.RDS" into dadaForReadTracking
+    file "all.ddR.RDS" into dadaRevReadTracking
+
+    script:
+    '''
+    #!/usr/bin/env Rscript
+    library(dada2)
+    packageVersion("dada2")
+
+    dadaFs <- lapply(list.files(path = '.', pattern = '.ddF.RDS$'), function (x) readRDS(x))
+    names(dadaFs) <- sub('.ddF.RDS', '', list.files('.', pattern = '.ddF.RDS'))
+    dadaRs <- lapply(list.files(path = '.', pattern = '.ddR.RDS$'), function (x) readRDS(x))
+    names(dadaRs) <- sub('.ddR.RDS', '', list.files('.', pattern = '.ddR.RDS'))
+    saveRDS(dadaFs, "all.ddF.RDS")
+    saveRDS(dadaRs, "all.ddR.RDS")
+    '''
 }
 
 /*
@@ -350,7 +383,7 @@ process SequenceTable {
 
     output:
     file "seqtab.RDS" into seqTable
-    file "mergers.RDS" into mergers
+    file "mergers.RDS" into mergerTracking
 
     script:
     '''
@@ -376,6 +409,7 @@ process SequenceTable {
  */
 
 if (params.species) {
+
     speciesFile = file(params.species)
     process ChimeraTaxonomySpecies {
         cpus 24
@@ -391,7 +425,7 @@ if (params.species) {
         file sp from speciesFile
 
         output:
-        file "seqtab_final.RDS" into seqTableFinal
+        file "seqtab_final.RDS" into seqTableFinal,seqTableFinalTracking
         file "tax_final.RDS" into taxFinal
 
         script:
@@ -430,7 +464,7 @@ if (params.species) {
         file ref from refFile
 
         output:
-        file "seqtab_final.RDS" into seqTableFinal
+        file "seqtab_final.RDS" into seqTableFinal,seqTableFinalTracking
         file "tax_final.RDS" into taxFinal
 
         script:
@@ -487,25 +521,55 @@ process BiomFile {
  *
  */
 
-// TODO: This step doesn't seem to be included in the example dada2 PE Big Data template
+// Broken: needs a left-join on the initial table
 
+process ReadTracking {
+    cpus 2
+    executor 'slurm'
+    queue myQueue
+    memory "8 GB"
+    module dada2Mod
+    publishDir "${params.outdir}/dada2-ReadTracking", mode: "link"
 
-/*
- *
- * Step 10: Assign taxonomy
- *
- */
+    input:
+    file trimmedTable from trimmedReadTracking
+    file sTable from seqTableFinalTracking
+    file mergers from mergerTracking
+    file ddFs from dadaForReadTracking
+    file ddRs from dadaRevReadTracking
 
-// TODO: Note this is in the above step #8, can it be split out?
+    output:
+    file "all.readtracking.txt"
 
-/*
- *
- * Step 11: Evaluate accuracy
- *
- */
+    script:
+    """
+    #!/usr/bin/env Rscript
 
-// TODO: This step doesn't seem to be included in the example dada2 PE Big Data template
+    library(dada2)
+    packageVersion("dada2")
+    library(dplyr)
 
+    getN <- function(x) sum(getUniques(x))
+
+    dadaFs <- as.data.frame(sapply(readRDS("${ddFs}"), getN))
+    dadaFs\$SampleID <- rownames(dadaFs)
+
+    dadaRs <- as.data.frame(sapply(readRDS("${ddRs}"), getN))
+    dadaRs\$SampleID <- rownames(dadaRs)
+
+    mergers <- as.data.frame(sapply(readRDS("${mergers}"), getN))
+    mergers\$SampleID <- rownames(mergers)
+
+    seqtab.nochim <- as.data.frame(rowSums(readRDS("${sTable}")))
+    seqtab.nochim\$SampleID <- rownames(seqtab.nochim)
+
+    trimmed <- read.csv("${trimmedTable}")
+
+    track <- Reduce(function(...) merge(..., by = "SampleID"),  list(trimmed, dadaFs, dadaRs, mergers, seqtab.nochim))
+    colnames(track) <- c("SampleID", "SequenceR1", "input", "filtered", "denoisedF", "denoisedR", "merged", "nonchim")
+    write.table(track, "all.readtracking.txt", sep = "\t", row.names = FALSE)
+    """
+}
 
 workflow.onComplete {
     def subject = "[Task #${params.ticket}] BS-Seq aligment and methylaton calling pipeline"
