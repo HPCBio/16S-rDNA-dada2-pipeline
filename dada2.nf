@@ -9,8 +9,8 @@ version = 0.4
 timestamp = new SimpleDateFormat("yyyy-MM-dd").format(new java.util.Date())
 
 // Pass this in to run
-params.reads = "./raw-seq/*_R{1,2}.fastq.gz"
-params.outdir = "./" + timestamp + "-dada2"
+params.reads = "/scratch/researchdata/cbio/immun/project03/raw/*_R{1,2}.fastq"
+params.outdir = "/scratch/researchdata/cbio/immun/project03/process/" + timestamp + "-dada2"
 params.ticket = 0
 
 // Trimming
@@ -20,16 +20,16 @@ params.truncFor = 0
 params.truncRev = 0
 params.maxEEFor = 2
 params.maxEERev = 2
-params.truncQ = 2
-params.maxN = 0
-params.maxLen = "Inf"
-params.minLen = 20
-params.rmPhiX = "FALSE"
+params.truncQ = 2 //default
+params.maxN = 0 //default
+params.maxLen = "Inf" //default
+params.minLen = 20 //default
+params.rmPhiX = "FALSE" 
 
 // Merging
-params.minOverlap = 20
-params.maxMismatch = 0
-params.trimOverhang = "FALSE" // This should be true with some sequences (V4)
+params.minOverlap = 20 //default=12
+params.maxMismatch = 0 //default
+params.trimOverhang = "FALSE" // KL: I don't think we have overhangs for WISH project03
 
 params.reference = false
 params.species = false
@@ -59,9 +59,9 @@ Channel
 refFile = file(params.reference)
 
 // Test R library
-dada2Mod = 'R-lib/3.4.2'
+dada2Mod = '/opt/exp_soft/R-3.3.2' //KL
 
-myQueue = 'normal'
+myQueue = 'UCTlong'
 
 // TODO: maybe have a way to check the params and fill this out automatically?
 runInfo = """
@@ -98,11 +98,10 @@ Output dir   : ${params.outdir}
 // these mess with dada2 (overpredict chimeras)
 
 process plotQual {
-    cpus 2
-    executor 'slurm'
+    cpus 6
+    executor 'pbs'
     queue myQueue
     memory "12 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
 
     input:
@@ -132,11 +131,10 @@ process plotQual {
 }
 
 process filterAndTrim {
-    cpus 4
-    executor 'slurm'
+    cpus 6
+    executor 'pbs'
     queue myQueue
     memory "12 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
 
     input:
@@ -174,11 +172,10 @@ process filterAndTrim {
 }
 
 process mergeTrimmedTable {
-    cpus 2
-    executor 'slurm'
+    cpus 4
+    executor 'pvs'
     queue myQueue
     memory "8 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
 
     input:
@@ -208,11 +205,10 @@ process mergeTrimmedTable {
 // TODO: combine For and Rev process to reduce code duplication?
 
 process LearnErrorsFor {
-    cpus 8
-    executor 'slurm'
+    cpus 6
+    executor 'pbs'
     queue myQueue
     memory "12 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-LearnErrors", mode: "link"
 
     input:
@@ -242,11 +238,10 @@ process LearnErrorsFor {
 }
 
 process LearnErrorsRev {
-    cpus 8
+    cpus 6
     executor 'slurm'
     queue myQueue
     memory "12 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-LearnErrors", mode: "link"
 
     input:
@@ -269,7 +264,7 @@ process LearnErrorsRev {
     set.seed(100)
 
     # Learn forward error rates
-    errR <- learnErrors(filtRs, nread=1e6, multithread=${task.cpus})
+    errR <- learnErrors(filtRs, nread=1e6, multithread=${task.cpus}) //KL: there is no parameter in learnErrors called 'nread' (nreads is deprecated)
     pdf("R2.err.pdf")
     plotErrors(errR, nominalQ=TRUE)
     dev.off()
@@ -287,10 +282,9 @@ process LearnErrorsRev {
 
 process SampleInferDerepAndMerge {
     cpus 4
-    executor 'slurm'
+    executor 'pbs'
     queue myQueue
     memory "8 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-Derep", mode: "link"
 
     input:
@@ -336,11 +330,10 @@ process SampleInferDerepAndMerge {
 // TODO: step may be obsolete if we run the above serially
 
 process mergeDadaRDS {
-    cpus 2
-    executor 'slurm'
+    cpus 4
+    executor 'pbs'
     queue myQueue
     memory "8 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-Inference", mode: "link"
 
     input:
@@ -373,11 +366,10 @@ process mergeDadaRDS {
  */
 
 process SequenceTable {
-    cpus 2
-    executor 'slurm'
+    cpus 4
+    executor 'pbs'
     queue myQueue
     memory "8 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-SeqTable", mode: "link"
 
     input:
@@ -415,10 +407,9 @@ if (params.species) {
     speciesFile = file(params.species)
     process ChimeraTaxonomySpecies {
         cpus 24
-        executor 'slurm'
+        executor 'pbs'
         queue myQueue
         memory "48 GB"
-        module dada2Mod
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "link"
 
         input:
@@ -455,10 +446,9 @@ if (params.species) {
 
     process ChimeraTaxonomy {
         cpus 24
-        executor 'slurm'
+        executor 'pbs'
         queue myQueue
         memory "48 GB"
-        module dada2Mod
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "link"
 
         input:
@@ -499,11 +489,10 @@ if (params.species) {
 // TODO: break into more steps?  phangorn takes a long time...
 
 process AlignAndGenerateTree {
-    cpus 12
-    executor 'slurm'
+    cpus 6
+    executor 'pbs'
     queue myQueue
     memory "12 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-Alignment", mode: "link"
 
     input:
@@ -546,11 +535,10 @@ process AlignAndGenerateTree {
 }
 
 process BiomFile {
-    cpus 2
-    executor 'slurm'
+    cpus 4
+    executor 'pbs'
     queue myQueue
     memory "8 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-BIOM", mode: "link"
 
     input:
@@ -581,11 +569,10 @@ process BiomFile {
 // Broken: needs a left-join on the initial table
 
 process ReadTracking {
-    cpus 2
-    executor 'slurm'
+    cpus 4
+    executor 'pbs'
     queue myQueue
     memory "8 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-ReadTracking", mode: "link"
 
     input:
