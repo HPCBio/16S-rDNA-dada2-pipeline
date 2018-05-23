@@ -1,5 +1,14 @@
 #!/usr/bin/env nextflow
-
+/*
+vim: syntax=groovy
+-*- mode: groovy;-*-
+========================================================================================
+               D A D A 2   P I P E L I N E
+========================================================================================
+ DADA2 NEXTFLOW PIPELINE FOR UCT CBIO
+ 
+----------------------------------------------------------------------------------------
+*/
 // Some help with time stamps
 import java.text.SimpleDateFormat
 
