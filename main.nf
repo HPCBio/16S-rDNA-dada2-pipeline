@@ -112,7 +112,8 @@ process plotQual {
     queue myQueue
     memory "12 GB"
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
-
+    module load software/R-3.3.2
+  
     input:
     file allReads from dada2ReadPairsToQual.flatMap({ it[1] }).collect()
 
@@ -122,7 +123,8 @@ process plotQual {
 
     script:
     """
-    #!/usr/bin/env Rscript
+    #!/usr/bin/env R
+    
     library(dada2); packageVersion("dada2")
 
     # Forward Reads
@@ -145,7 +147,8 @@ process filterAndTrim {
     queue myQueue
     memory "12 GB"
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
-
+    module load software/R-3.3.2
+  
     input:
     set pairId, file(reads) from dada2ReadPairs
 
@@ -157,7 +160,8 @@ process filterAndTrim {
 
     script:
     """
-    #!/usr/bin/env Rscript
+    #!/usr/bin/env R
+    
     library(dada2); packageVersion("dada2")
 
     out <- filterAndTrim(fwd = "${reads[0]}",
