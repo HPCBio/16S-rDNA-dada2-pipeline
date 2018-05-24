@@ -112,7 +112,7 @@ process plotQual {
     queue myQueue
     memory "12 GB"
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
-    module load software/R-3.3.2
+    module dada2Mod
   
     input:
     file allReads from dada2ReadPairsToQual.flatMap({ it[1] }).collect()
@@ -123,7 +123,7 @@ process plotQual {
 
     script:
     """
-    #!/usr/bin/env R
+    #!/usr/bin/env Rscript
     
     library(dada2); packageVersion("dada2")
 
@@ -147,7 +147,7 @@ process filterAndTrim {
     queue myQueue
     memory "12 GB"
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
-    module load software/R-3.3.2
+    module dada2Mod
   
     input:
     set pairId, file(reads) from dada2ReadPairs
@@ -160,7 +160,7 @@ process filterAndTrim {
 
     script:
     """
-    #!/usr/bin/env R
+    #!/usr/bin/env Rscript
     
     library(dada2); packageVersion("dada2")
 
@@ -190,7 +190,8 @@ process mergeTrimmedTable {
     queue myQueue
     memory "8 GB"
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
-
+    module dada2Mod
+  
     input:
     file trimData from trimTracking.collect()
 
@@ -223,7 +224,8 @@ process LearnErrorsFor {
     queue myQueue
     memory "12 GB"
     publishDir "${params.outdir}/dada2-LearnErrors", mode: "link"
-
+    module dada2Mod
+  
     input:
     file fReads from forReads.collect()
 
@@ -256,7 +258,8 @@ process LearnErrorsRev {
     queue myQueue
     memory "12 GB"
     publishDir "${params.outdir}/dada2-LearnErrors", mode: "link"
-
+    module dada2Mod
+  
     input:
     file rReads from revReads.collect()
 
@@ -299,7 +302,8 @@ process SampleInferDerepAndMerge {
     queue myQueue
     memory "8 GB"
     publishDir "${params.outdir}/dada2-Derep", mode: "link"
-
+    module dada2Mod
+  
     input:
     set val(pairId), file(filtFor), file(filtRev) from filteredReads
     file errFor from errorsFor
@@ -348,7 +352,8 @@ process mergeDadaRDS {
     queue myQueue
     memory "8 GB"
     publishDir "${params.outdir}/dada2-Inference", mode: "link"
-
+    module dada2Mod
+  
     input:
     file ddFs from dadaFor.collect()
     file ddRs from dadaRev.collect()
@@ -384,7 +389,8 @@ process SequenceTable {
     queue myQueue
     memory "8 GB"
     publishDir "${params.outdir}/dada2-SeqTable", mode: "link"
-
+    module dada2Mod
+  
     input:
     file mr from mergedReads.collect()
 
@@ -424,7 +430,8 @@ if (params.species) {
         queue myQueue
         memory "48 GB"
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "link"
-
+        module dada2Mod
+      
         input:
         file st from seqTable
         file ref from refFile
@@ -463,7 +470,8 @@ if (params.species) {
         queue myQueue
         memory "48 GB"
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "link"
-
+        module dada2Mod
+      
         input:
         file st from seqTable
         file ref from refFile
@@ -507,7 +515,8 @@ process AlignAndGenerateTree {
     queue myQueue
     memory "12 GB"
     publishDir "${params.outdir}/dada2-Alignment", mode: "link"
-
+    module dada2Mod
+  
     input:
     file sTable from seqTableFinalTree
 
@@ -553,7 +562,8 @@ process BiomFile {
     queue myQueue
     memory "8 GB"
     publishDir "${params.outdir}/dada2-BIOM", mode: "link"
-
+    module dada2Mod
+  
     input:
     file sTable from seqTableFinal
     file tTable from taxFinal
@@ -587,7 +597,8 @@ process ReadTracking {
     queue myQueue
     memory "8 GB"
     publishDir "${params.outdir}/dada2-ReadTracking", mode: "link"
-
+    module dada2Mod
+  
     input:
     file trimmedTable from trimmedReadTracking
     file sTable from seqTableFinalTracking
