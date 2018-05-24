@@ -186,8 +186,7 @@ process filterAndTrim {
 
 process mergeTrimmedTable {
     cpus 4
-    executor 'pb
-  s'
+    executor 'pbs'
     queue myQueue
     memory "8 GB"
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
