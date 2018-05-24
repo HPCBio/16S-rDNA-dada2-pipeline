@@ -18,8 +18,8 @@ version = 0.4
 timestamp = new SimpleDateFormat("yyyy-MM-dd").format(new java.util.Date())
 
 // Pass this in to run
-params.reads = "/scratch/researchdata/cbio/immun/project03/raw/*_R{1,2}.fastq"
-params.outdir = "/scratch/researchdata/cbio/immun/project03/process/" + timestamp + "-dada2"
+params.reads = "/researchdata/fhgfs/katie/dada2-test/raw_testdata/*_R{1,2}.fastq"
+params.outdir = "/researchdata/fhgfs/katie/dada2-test/outdir/" + timestamp + "-dada2"
 params.ticket = 0
 
 // Trimming
