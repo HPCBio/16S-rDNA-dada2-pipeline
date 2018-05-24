@@ -252,7 +252,7 @@ process LearnErrorsFor {
 
 process LearnErrorsRev {
     cpus 6
-    executor 'slurm'
+    executor 'pbs'
     queue myQueue
     memory "12 GB"
     publishDir "${params.outdir}/dada2-LearnErrors", mode: "link"
