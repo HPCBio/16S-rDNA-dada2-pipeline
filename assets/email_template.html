@@ -5,8 +5,8 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <meta name="description" content="nfcore/RNAseq: a bioinformatics best-practice analysis pipeline used for RNA sequencing data at the National Genomics Infrastructure at SciLifeLab Stockholm, Sweden.">
-  <title>nfcore/RNAseq Pipeline Report</title>
+  <meta name="description" content="uct-cbio/16S-rDNA-dada2-pipeline: a Nextflow bioinformatics pipeline using dada2 for 16S rRNA gene amplicon sequencing data analysis">
+  <title>uct-cbio/16S-rDNA-dada2-pipeline Pipeline Report</title>
 </head>
 <body>
 <div style="font-family: Helvetica, Arial, sans-serif; padding: 30px; max-width: 800px; margin: 0 auto;">
@@ -56,14 +56,21 @@
     </tbody>
 </table>
 
-<p>nfcore/RNAseq is a bioinformatics best-practice analysis pipeline used for RNA sequencing data at the National Genomics Infrastructure at SciLifeLab Stockholm, Sweden.</p>
-<p>The pipeline uses Nextflow, a bioinformatics workflow tool. It pre-processes raw data from FastQ inputs, aligns the reads and performs extensive quality-control on the results.</p>
-<p>For more information, please see the pipeline homepage: <a href="https://github.com/nf-core/RNAseq">https://github.com/nf-core/RNAseq</a></p>
+<p>uct-cbio/16S-rDNA-dada2-pipeline a Nextflow bioinformatics pipeline using dada2 for 16S rRNA gene amplicon sequencing data analysis. The dada2 package infers exact amplicon sequence variants (ASVs) from
+high-throughput amplicon sequencing data, replacing the coarser and less accurate
+OTU clustering approach. The dada2 pipeline takes as input demultiplexed fastq
+files, and outputs the sequence variants and their sample-wise abundances after
+removing substitution and chimera errors. Taxonomic classification is available
+via a native implementation of the RDP naive Bayesian classifier, and genus-species
+assignment by exact matching.</p>
+<p>Please reference the authors of dada2 if using this pipeline.</p>
+<p>For more information on dada2 usage, please visit:  <a href="http://benjjneb.github.io/dada2/">http://benjjneb.github.io/dada2/</a></p>
+<p>For more information on the Nextflow implementation of this pipeline, please visit: <a href="https://github.com/uct-cbio/16S-rDNA-dada2-pipeline">https://github.com/uct-cbio/16S-rDNA-dada2-pipeline</a></p>
 
 <hr style="height: 3px; padding: 0; margin: 24px 0; background-color: #e1e4e8; border: 0;">
 
-<img src="cid:scilifelablogo">
-<img src="cid:ngilogo">
+<img src="cid:uctlogo">
+<img src="cid:cbiologo">
 
 </div>
 
