@@ -68,7 +68,7 @@ Channel
 refFile = file(params.reference)
 
 // Test R library
-dada2Mod = '/opt/exp_soft/R-3.3.2' //KL
+dada2Mod = 'software/R-3.3.2' //KL
 
 myQueue = 'UCTlong'
 
