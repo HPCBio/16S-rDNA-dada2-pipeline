@@ -676,4 +676,19 @@ workflow.onComplete {
           log.info "[uct-cbio/16S-rDNA-dada2-pipeline] Sent summary e-mail to $params.email (mail)"
         }
     }
+  // Switch the embedded MIME images with base64 encoded src
+    uctlogo = new File("$baseDir/assets/UCT_logo.png").bytes.encodeBase64().toString()
+    cbiologo = new File("$baseDir/assets/cbio_logo.png").bytes.encodeBase64().toString()
+    email_html = email_html.replaceAll(~/cid:uctlogo/, "data:image/png;base64,$uctlogo")
+    email_html = email_html.replaceAll(~/cid:cbiologo/, "data:image/png;base64,$cbiologo")
+
+    // Write summary e-mail HTML to a file
+    def output_d = new File( "${params.outdir}/Documentation/" )
+    if( !output_d.exists() ) {
+      output_d.mkdirs()
+    }
+    def output_hf = new File( output_d, "pipeline_report.html" )
+    output_hf.withWriter { w -> w << email_html }
+    def output_tf = new File( output_d, "pipeline_report.txt" )
+    output_tf.withWriter { w -> w << email_txt }
 }
