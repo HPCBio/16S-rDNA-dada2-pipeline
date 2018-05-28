@@ -615,8 +615,8 @@ process ReadTracking {
  */
 workflow.onComplete {
   
-    /Setup email variables
-    def subject = "[uct-cbio/16S-rDNA-dada2-pipeline successful: $workflow.runName"
+    //Setup email variables
+    def subject = "[uct-cbio/16S-rDNA-dada2-pipeline] successful: $workflow.runName"
     if(!workflow.success){
       subject = "[uct-cbio/16S-rDNA-dada2-pipeline] FAILED: $workflow.runName"
     }
