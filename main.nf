@@ -42,10 +42,6 @@ if (params.help){
     helpMessage()
     exit 0
 }
-// Some help with time stamps
-import java.text.SimpleDateFormat
-
-timestamp = new SimpleDateFormat("yyyy-MM-dd").format(new java.util.Date())
 
 //Validate inputs
 if ( params.trimFor == false ) {
