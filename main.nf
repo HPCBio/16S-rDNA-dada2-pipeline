@@ -35,6 +35,11 @@ def helpMessage() {
  * SET UP CONFIGURATION VARIABLES
  */
 
+// Configurable variables
+params.name = false
+params.project = false
+params.email = false
+params.plaintext_email = false
 
 // Show help emssage
 params.help = false
@@ -115,7 +120,7 @@ process plotQual {
 process filterAndTrim {
     cpus 6
     executor 'pbs'
-    queue myQueue
+    queue params.myQueue
     memory "12 GB"
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
     module params.dada2Mod
@@ -158,7 +163,7 @@ process filterAndTrim {
 process mergeTrimmedTable {
     cpus 4
     executor 'pbs'
-    queue myQueue
+    queue params.myQueue
     memory "8 GB"
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
     module params.dada2Mod
@@ -192,7 +197,7 @@ process mergeTrimmedTable {
 process LearnErrorsFor {
     cpus 6
     executor 'pbs'
-    queue myQueue
+    queue params.myQueue
     memory "12 GB"
     publishDir "${params.outdir}/dada2-LearnErrors", mode: "link"
     module params.dada2Mod
@@ -226,7 +231,7 @@ process LearnErrorsFor {
 process LearnErrorsRev {
     cpus 6
     executor 'pbs'
-    queue myQueue
+    queue params.myQueue
     memory "12 GB"
     publishDir "${params.outdir}/dada2-LearnErrors", mode: "link"
     module params.dada2Mod
@@ -270,7 +275,7 @@ process LearnErrorsRev {
 process SampleInferDerepAndMerge {
     cpus 4
     executor 'pbs'
-    queue myQueue
+    queue params.myQueue
     memory "8 GB"
     publishDir "${params.outdir}/dada2-Derep", mode: "link"
     module params.dada2Mod
@@ -320,7 +325,7 @@ process SampleInferDerepAndMerge {
 process mergeDadaRDS {
     cpus 4
     executor 'pbs'
-    queue myQueue
+    queue params.myQueue
     memory "8 GB"
     publishDir "${params.outdir}/dada2-Inference", mode: "link"
     module params.dada2Mod
@@ -357,7 +362,7 @@ process mergeDadaRDS {
 process SequenceTable {
     cpus 4
     executor 'pbs'
-    queue myQueue
+    queue params.myQueue
     memory "8 GB"
     publishDir "${params.outdir}/dada2-SeqTable", mode: "link"
     module params.dada2Mod
@@ -398,7 +403,7 @@ if (params.species) {
     process ChimeraTaxonomySpecies {
         cpus 24
         executor 'pbs'
-        queue myQueue
+        queue params.myQueue
         memory "48 GB"
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "link"
         module params.dada2Mod
@@ -438,7 +443,7 @@ if (params.species) {
     process ChimeraTaxonomy {
         cpus 24
         executor 'pbs'
-        queue myQueue
+        queue params.myQueue
         memory "48 GB"
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "link"
         module params.dada2Mod
@@ -483,7 +488,7 @@ if (params.species) {
 process AlignAndGenerateTree {
     cpus 6
     executor 'pbs'
-    queue myQueue
+    queue params.myQueue
     memory "12 GB"
     publishDir "${params.outdir}/dada2-Alignment", mode: "link"
     module params.dada2Mod
@@ -530,7 +535,7 @@ process AlignAndGenerateTree {
 process BiomFile {
     cpus 4
     executor 'pbs'
-    queue myQueue
+    queue params.myQueue
     memory "8 GB"
     publishDir "${params.outdir}/dada2-BIOM", mode: "link"
     module params.dada2Mod
@@ -565,7 +570,7 @@ process BiomFile {
 process ReadTracking {
     cpus 4
     executor 'pbs'
-    queue myQueue
+    queue params.myQueue
     memory "8 GB"
     publishDir "${params.outdir}/dada2-ReadTracking", mode: "link"
     module params.dada2Mod
