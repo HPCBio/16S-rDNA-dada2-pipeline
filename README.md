@@ -1,3 +1,5 @@
+# ![kviljoen/16S-rDNA-dada2-pipeline](/assets/cbio_logo.png)
+
 # dada2 workflow
 
 (BETA)
