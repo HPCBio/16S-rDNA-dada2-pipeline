@@ -1,5 +1,7 @@
 # ![kviljoen/16S-rDNA-dada2-pipeline](/assets/cbio_logo.png)
 
+<script src="https://gist.github.com/PurpleBooth/109311bb0361f32d87a2.js"></script>
+
 # dada2 Nextflow workflow
 
 (BETA)
