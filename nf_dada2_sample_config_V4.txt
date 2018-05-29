@@ -1,0 +1,44 @@
+// I-O params
+params.batchid  = "dada2-run-with-V4-experiment1"
+params.ticket   = '8259'
+params.inputdir = "/home/projects/May2018-metagenomcis/data/reads/V4_Experiment1"
+params.reads    = "${params.inputdir}/*_R{1,2}.fastq"
+params.outdir   = "/home/projects/May2018-metagenomcis/results/20180525_dada2-run-with-V4-experiment1"
+params.email    = 'userid@illinois.edu'
+params.metaconfig = "/home/projects/May2018-metagenomcis/src/dada2.sample.mapping.file.V4experiment1.txt"
+
+
+// Trimming
+params.trimFor = 19 
+params.trimRev = 20
+params.truncFor = 0 
+params.truncRev = 0
+params.maxEEFor = 2
+params.maxEERev = 2
+params.truncQ = 2
+params.maxN = 0
+params.maxLen = "Inf"
+params.minLen = 20
+params.rmPhiX = "FALSE"
+
+// Merging
+params.minOverlap = 20
+params.maxMismatch = 1
+params.trimOverhang = "TRUE" // This should be true with some sequences (V4)
+
+// taxonomy databases, one with genus-level info and one with species-level information
+params.reference = "/home/projects/May2018-metagenomcis/data/silva/dada2/silva_nr_v132_train_set.fa"
+params.species   = "/home/projects/May2018-metagenomcis/data/silva_species_assignment_v132.fa"
+
+// This proces is optional
+params.skipMakeTree = "FALSE"
+
+// NYI, for dada sample inference pooling (requires all samples)
+params.pool = false
+
+// trace file
+trace {
+    enabled = true
+    file = "${params.batchid}" + "_pipeline_trace.txt"
+    fields = 'task_id,hash,name,status,exit,module,queue,cpus,time,memory,submit,start,complete,realtime,%cpu,rss,rchar,wchar'
+}
