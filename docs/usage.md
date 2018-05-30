@@ -34,6 +34,7 @@ When you run the above command, Nextflow automatically pulls the pipeline code f
 ```bash
 nextflow pull uct-cbio/16S-rDNA-dada2-pipeline
 ```
+Note that `nextflow pull` by default stores pipelines in $HOME/.nextflow/assets To clone this pipeline to a specific directory, use `nextflow clone ct-cbio/16S-rDNA-dada2-pipeline target-dir ` where target-dir is the target directory.
 
 ## Main Arguments
 
