@@ -83,12 +83,7 @@ refFile = file(params.reference)
 
 
 process plotQual {
-    cpus 6
-    executor 'pbs'
-    queue params.myQueue
-    memory "12 GB"
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
-    //module params.dada2Mod
   
     input:
     file allReads from dada2ReadPairsToQual.flatMap({ it[1] }).collect()
@@ -99,7 +94,7 @@ process plotQual {
 
     script:
     """
-    
+    R
     library(dada2); packageVersion("dada2")
 
     # Forward Reads
@@ -117,12 +112,7 @@ process plotQual {
 }
 
 process filterAndTrim {
-    cpus 6
-    executor 'pbs'
-    queue params.myQueue
-    memory "12 GB"
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
-    //module params.dada2Mod
   
     input:
     set pairId, file(reads) from dada2ReadPairs
@@ -135,7 +125,7 @@ process filterAndTrim {
 
     script:
     """
-    
+    R
     library(dada2); packageVersion("dada2")
 
     out <- filterAndTrim(fwd = "${reads[0]}",
@@ -159,12 +149,7 @@ process filterAndTrim {
 }
 
 process mergeTrimmedTable {
-    cpus 4
-    executor 'pbs'
-    queue params.myQueue
-    memory "8 GB"
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
-    module params.dada2Mod
   
     input:
     file trimData from trimTracking.collect()
@@ -174,7 +159,7 @@ process mergeTrimmedTable {
 
     script:
     """
-    #!/usr/bin/env Rscript
+    R
     trimmedFiles <- list.files(path = '.', pattern = '*.trimmed.txt')
     sample.names <- sub('.trimmed.txt', '', trimmedFiles)
     trimmed <- do.call("rbind", lapply(trimmedFiles, function (x) as.data.frame(read.csv(x))))
@@ -193,12 +178,7 @@ process mergeTrimmedTable {
 // TODO: combine For and Rev process to reduce code duplication?
 
 process LearnErrorsFor {
-    cpus 6
-    executor 'pbs'
-    queue params.myQueue
-    memory "12 GB"
     publishDir "${params.outdir}/dada2-LearnErrors", mode: "link"
-    module params.dada2Mod
   
     input:
     file fReads from forReads.collect()
@@ -208,7 +188,7 @@ process LearnErrorsFor {
 
     script:
     """
-    #!/usr/bin/env Rscript
+    R
     library(dada2);
     packageVersion("dada2")
 
@@ -227,12 +207,7 @@ process LearnErrorsFor {
 }
 
 process LearnErrorsRev {
-    cpus 6
-    executor 'pbs'
-    queue params.myQueue
-    memory "12 GB"
     publishDir "${params.outdir}/dada2-LearnErrors", mode: "link"
-    module params.dada2Mod
   
     input:
     file rReads from revReads.collect()
@@ -242,7 +217,7 @@ process LearnErrorsRev {
 
     script:
     """
-    #!/usr/bin/env Rscript
+    R
     library(dada2);
     packageVersion("dada2")
 
@@ -271,12 +246,7 @@ process LearnErrorsRev {
 // TODO: allow serial processing of this step?
 
 process SampleInferDerepAndMerge {
-    cpus 4
-    executor 'pbs'
-    queue params.myQueue
-    memory "8 GB"
     publishDir "${params.outdir}/dada2-Derep", mode: "link"
-    module params.dada2Mod
   
     input:
     set val(pairId), file(filtFor), file(filtRev) from filteredReads
@@ -290,7 +260,7 @@ process SampleInferDerepAndMerge {
 
     script:
     """
-    #!/usr/bin/env Rscript
+    R
     library(dada2)
     packageVersion("dada2")
 
@@ -321,12 +291,7 @@ process SampleInferDerepAndMerge {
 // TODO: step may be obsolete if we run the above serially
 
 process mergeDadaRDS {
-    cpus 4
-    executor 'pbs'
-    queue params.myQueue
-    memory "8 GB"
     publishDir "${params.outdir}/dada2-Inference", mode: "link"
-    module params.dada2Mod
   
     input:
     file ddFs from dadaFor.collect()
@@ -338,7 +303,7 @@ process mergeDadaRDS {
 
     script:
     '''
-    #!/usr/bin/env Rscript
+    R
     library(dada2)
     packageVersion("dada2")
 
@@ -358,12 +323,7 @@ process mergeDadaRDS {
  */
 
 process SequenceTable {
-    cpus 4
-    executor 'pbs'
-    queue params.myQueue
-    memory "8 GB"
     publishDir "${params.outdir}/dada2-SeqTable", mode: "link"
-    module params.dada2Mod
   
     input:
     file mr from mergedReads.collect()
@@ -374,7 +334,7 @@ process SequenceTable {
 
     script:
     '''
-    #!/usr/bin/env Rscript
+    R
     library(dada2)
     packageVersion("dada2")
 
@@ -399,12 +359,7 @@ if (params.species) {
 
     speciesFile = file(params.species)
     process ChimeraTaxonomySpecies {
-        cpus 24
-        executor 'pbs'
-        queue params.myQueue
-        memory "48 GB"
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "link"
-        module params.dada2Mod
       
         input:
         file st from seqTable
@@ -417,7 +372,7 @@ if (params.species) {
 
         script:
         """
-        #!/usr/bin/env Rscript
+        R
         library(dada2)
         packageVersion("dada2")
 
@@ -439,12 +394,7 @@ if (params.species) {
 } else {
 
     process ChimeraTaxonomy {
-        cpus 24
-        executor 'pbs'
-        queue params.myQueue
-        memory "48 GB"
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "link"
-        module params.dada2Mod
       
         input:
         file st from seqTable
@@ -456,7 +406,7 @@ if (params.species) {
 
         script:
         """
-        #!/usr/bin/env Rscript
+        R
         library(dada2)
         packageVersion("dada2")
 
@@ -484,12 +434,7 @@ if (params.species) {
 // TODO: break into more steps?  phangorn takes a long time...
 
 process AlignAndGenerateTree {
-    cpus 6
-    executor 'pbs'
-    queue params.myQueue
-    memory "12 GB"
     publishDir "${params.outdir}/dada2-Alignment", mode: "link"
-    module params.dada2Mod
   
     input:
     file sTable from seqTableFinalTree
@@ -502,7 +447,7 @@ process AlignAndGenerateTree {
 
     script:
     """
-    #!/usr/bin/env Rscript
+    R
     library(dada2)
     library(DECIPHER)
     library(phangorn)
@@ -531,12 +476,7 @@ process AlignAndGenerateTree {
 }
 
 process BiomFile {
-    cpus 4
-    executor 'pbs'
-    queue params.myQueue
-    memory "8 GB"
     publishDir "${params.outdir}/dada2-BIOM", mode: "link"
-    module params.dada2Mod
   
     input:
     file sTable from seqTableFinal
@@ -547,7 +487,7 @@ process BiomFile {
 
     script:
     """
-    #!/usr/bin/env Rscript
+    R
     library(biomformat)
     packageVersion("biomformat")
     seqtab <- readRDS("${sTable}")
@@ -566,12 +506,7 @@ process BiomFile {
 // Broken: needs a left-join on the initial table
 
 process ReadTracking {
-    cpus 4
-    executor 'pbs'
-    queue params.myQueue
-    memory "8 GB"
     publishDir "${params.outdir}/dada2-ReadTracking", mode: "link"
-    module params.dada2Mod
   
     input:
     file trimmedTable from trimmedReadTracking
@@ -585,8 +520,7 @@ process ReadTracking {
 
     script:
     """
-    #!/usr/bin/env Rscript
-
+    R
     library(dada2)
     packageVersion("dada2")
     library(dplyr)
