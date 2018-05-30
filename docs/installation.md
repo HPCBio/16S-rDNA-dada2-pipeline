@@ -1,16 +1,9 @@
-# nfcore/RNAseq Installation
+# uct-cbio/16S-rDNA-dada2-pipeline Installation
 
-To start using the nfcore/RNAseq pipeline, there are three steps described below:
+To start using the uct-cbio/16S-rDNA-dada2-pipeline, follow the steps below:
 
 1. [Install Nextflow](#install-nextflow)
 2. [Install the pipeline](#install-the-pipeline)
-3. Configure the pipeline
-    * [Local configuration](configuration/local.md)
-    * [Amazon Web Services (aws)](configuration/aws.md)
-    * [Swedish UPPMAX clusters](configuration/uppmax.md)
-    * [Swedish cs3e Hebbe cluster](configuration/c3se.md)
-    * [Tübingen QBiC](configuration/qbic.md)
-    * [Adding your own system](configuration/adding_your_own.md)
 
 ## 1) Install NextFlow
 Nextflow runs on most POSIX systems (Linux, Mac OSX etc). It can be installed by running the following commands:
@@ -33,7 +26,7 @@ mv nextflow ~/bin
 See [nextflow.io](https://www.nextflow.io/) and [NGI-NextflowDocs](https://github.com/SciLifeLab/NGI-NextflowDocs) for further instructions on how to install and configure Nextflow.
 
 ## 2) Install the Pipeline
-This pipeline itself needs no installation - NextFlow will automatically fetch it from GitHub if `uct-cbio/16S-rDNA-dada2-pipeline` is specified as the pipeline name.
+This pipeline itself needs no installation - NextFlow will automatically fetch it from GitHub if `uct-cbio/16S-rDNA-dada2-pipeline` is specified as the pipeline name when executing `nextflow run uct-cbio/16S-rDNA-dada2-pipeline`. If for some reason you need to use the development branch, this can be specified as `nextflow run uct-cbio/16S-rDNA-dada2-pipeline -r dev`
 
 ### Offline use
 
