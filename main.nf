@@ -99,7 +99,6 @@ process plotQual {
 
     script:
     """
-    #!/usr/bin/env Rscript
     
     library(dada2); packageVersion("dada2")
 
