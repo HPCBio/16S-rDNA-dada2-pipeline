@@ -41,6 +41,6 @@ nextflow run /my-pipelines/16S-rDNA-dada2-pipeline-master
 
 ---
 
-[![UCT Computational Biology](assets/cbio_logo.png)](http://www.cbio.uct.ac.za/)
+[![UCT Computational Biology](/assets/cbio_logo.png)](http://www.cbio.uct.ac.za/)
 
 ---
