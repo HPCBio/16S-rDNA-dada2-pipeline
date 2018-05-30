@@ -88,7 +88,7 @@ process plotQual {
     queue params.myQueue
     memory "12 GB"
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
-    module params.dada2Mod
+    //module params.dada2Mod
   
     input:
     file allReads from dada2ReadPairsToQual.flatMap({ it[1] }).collect()
@@ -122,7 +122,7 @@ process filterAndTrim {
     queue params.myQueue
     memory "12 GB"
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
-    module params.dada2Mod
+    //module params.dada2Mod
   
     input:
     set pairId, file(reads) from dada2ReadPairs
@@ -135,7 +135,6 @@ process filterAndTrim {
 
     script:
     """
-    #!/usr/bin/env Rscript
     
     library(dada2); packageVersion("dada2")
 
