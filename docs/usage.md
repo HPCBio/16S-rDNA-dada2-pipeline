@@ -32,7 +32,7 @@ outdir         # Finished results (configurable, see below)
 When you run the above command, Nextflow automatically pulls the pipeline code from GitHub and stores it as a cached version. When running the pipeline after this, it will always use the cached version if available - even if the pipeline has been updated since. To make sure that you're running the latest version of the pipeline, make sure that you regularly update the cached version of the pipeline:
 
 ```bash
-nextflow pull nf-core/rnaseq
+nextflow pull uct-cbio/16S-rDNA-dada2-pipeline
 ```
 
 ## Main Arguments
@@ -43,6 +43,8 @@ Use this parameter to choose a configuration profile. Each profile is designed f
 * `standard`
     * The default profile, used if `-profile` is not specified at all. Runs locally and expects all software to be installed and available on the `PATH`.
     * This profile is mainly designed to be used as a starting point for other configurations and is inherited by most of the other profiles.
+* `uct_hex`
+    * Designed to run on UCT's high-performance cluster (hex).
 * `none`
     * No configuration at all. Useful if you want to build your own config from scratch and want to avoid loading in the default `base` config profile (not recommended).
 
