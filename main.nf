@@ -96,8 +96,7 @@ process plotQual {
     script:
     """
     #!/bin/bash
-    Rscript
-    plotQual.R
+    Rscript --vanilla plotQual.R
     """
 }
 
