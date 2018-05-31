@@ -83,7 +83,7 @@ refFile = file(params.reference)
 
 
 process plotQual {
-    tag { "${params.projectName}.plotQ" }
+    tag { "plotQ" }
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
   
     input:
@@ -95,7 +95,8 @@ process plotQual {
 
     script:
     """
-    R
+    #!/usr/bin/env Rscript
+   
     library(dada2); packageVersion("dada2")
 
     # Forward Reads
@@ -113,7 +114,7 @@ process plotQual {
 }
 
 process filterAndTrim {
-    tag { "${params.projectName}.filterAndTrim" }
+    tag { "filterAndTrim" }
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
   
     input:
@@ -127,7 +128,7 @@ process filterAndTrim {
 
     script:
     """
-    R
+    #!/usr/bin/env Rscript
     library(dada2); packageVersion("dada2")
 
     out <- filterAndTrim(fwd = "${reads[0]}",
