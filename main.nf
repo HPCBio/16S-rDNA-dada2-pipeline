@@ -83,6 +83,7 @@ refFile = file(params.reference)
 
 
 process plotQual {
+    tag { "${params.projectName}.plotQ" }
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
   
     input:
@@ -112,6 +113,7 @@ process plotQual {
 }
 
 process filterAndTrim {
+    tag { "${params.projectName}.filterAndTrim" }
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
   
     input:
@@ -149,6 +151,7 @@ process filterAndTrim {
 }
 
 process mergeTrimmedTable {
+    tag { "${params.projectName}.mergTrimmedTable" }
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
   
     input:
