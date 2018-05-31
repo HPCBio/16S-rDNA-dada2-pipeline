@@ -96,7 +96,7 @@ process plotQual {
     script:
     """
     #!/bin/bash
-    Rscript --vanilla plotQual.R
+    Rscript --vanilla 'plotQual.R'
     """
 }
 
@@ -116,8 +116,7 @@ process filterAndTrim {
     script:
     """
     #!/bin/bash
-    Rscript
-    filterAndTrim.R
+    Rscript --vanilla 'filterAndTrim.R'
     """
 }
 
