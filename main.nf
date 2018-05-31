@@ -1,42 +1,54 @@
 #!/usr/bin/env nextflow
+/*
+vim: syntax=groovy
+-*- mode: groovy;-*-
+========================================================================================
+               D A D A 2   P I P E L I N E
+========================================================================================
+ DADA2 NEXTFLOW PIPELINE FOR UCT CBIO
+ 
+----------------------------------------------------------------------------------------
+*/
 
-// Some help with time stamps
-import java.text.SimpleDateFormat
+def helpMessage() {
+    log.info"""
+    ===================================
+     uct-cbio/16S-rDNA-dada2-pipeline  ~  version ${params.version}
+    ===================================
+    Usage:
+    The typical command for running the pipeline is as follows:
+    nextflow run uct-cbio/16S-rDNA-dada2-pipeline --reads '*_R{1,2}.fastq.gz' --trimFor 24 --trimRev 25 --reference 'gg_13_8_train_set_97.fa.gz' -profile uct_hex
+    Mandatory arguments:
+      --reads                       Path to input data (must be surrounded with quotes)
+      -profile                      Hardware config to use. local / uct_hex
+      --trimFor                     Set length of R1 (--trimFor) that needs to be trimmed (set 0 if no trimming is needed)
+      --trimRev                     Set length of R2 (--trimRev) that needs to be trimmed (set 0 if no trimming is needed)
+      --reference                   Path to taxonomic database to be used for annotation (e.g. gg_13_8_train_set_97.fa.gz)
+    Other options:
+      --outdir                      The output directory where the results will be saved
+      --email                       Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits
+      -name                         Name for the pipeline run. If not specified, Nextflow will automatically generate a random mnemonic.
+    """.stripIndent()
+}
 
-// version
-version = 0.4
+/*
+ * SET UP CONFIGURATION VARIABLES
+ */
 
-timestamp = new SimpleDateFormat("yyyy-MM-dd").format(new java.util.Date())
+// Configurable variables
+params.name = false
+params.project = false
+params.email = false
+params.plaintext_email = false
 
-// Pass this in to run
-params.reads = "./raw-seq/*_R{1,2}.fastq.gz"
-params.outdir = "./" + timestamp + "-dada2"
-params.ticket = 0
+// Show help emssage
+params.help = false
+if (params.help){
+    helpMessage()
+    exit 0
+}
 
-// Trimming
-params.trimFor = false
-params.trimRev = false
-params.truncFor = 0
-params.truncRev = 0
-params.maxEEFor = 2
-params.maxEERev = 2
-params.truncQ = 2
-params.maxN = 0
-params.maxLen = "Inf"
-params.minLen = 20
-params.rmPhiX = "FALSE"
-
-// Merging
-params.minOverlap = 20
-params.maxMismatch = 0
-params.trimOverhang = "FALSE" // This should be true with some sequences (V4)
-
-params.reference = false
-params.species = false
-
-// NYI, for dada sample inference pooling (requires all samples)
-params.pool = false
-
+//Validate inputs
 if ( params.trimFor == false ) {
     exit 1, "Must set length of R1 (--trimFor) that needs to be trimmed (set 0 if no trimming is needed)"
 }
@@ -49,7 +61,12 @@ if ( params.reference == false ) {
     exit 1, "Must set reference database using --reference"
 }
 
-// if (params.ticket == 0) exit 1, "Must set Redmine ticket for pipeline summary to be sent"
+// Has the run name been specified by the user?
+//  this has the bonus effect of catching both -name and --name
+custom_runName = params.name
+if( !(workflow.runName ==~ /[a-z]+_[a-z]+/) ){
+  custom_runName = workflow.runName
+}
 
 Channel
     .fromFilePairs( params.reads )
@@ -58,53 +75,16 @@ Channel
 
 refFile = file(params.reference)
 
-// Test R library
-dada2Mod = 'R-lib/3.4.2'
-
-myQueue = 'normal'
-
-// TODO: maybe have a way to check the params and fill this out automatically?
-runInfo = """
-
-====================================
- dada2 : Paired-end workflow
-====================================
-Pipeline ver : ${version}
-Reads        : ${params.reads}
-Ticket       : ${params.ticket}
-dada2        : ${dada2Mod}
-Trim-For     : ${params.trimFor}
-Trim-Rev     : ${params.trimRev}
-Trunc-For    : ${params.truncFor}
-Trunc-Rev    : ${params.truncRev}
-Reference    : ${params.reference}
-Species      : ${params.species}
-Current home : $HOME
-Current user : $USER
-Current path : $PWD
-Script dir   : $baseDir
-Working dir  : $workDir
-Output dir   : ${params.outdir}
-====================================
-"""
-
 /*
  *
  * Step 1: Filter and trim (run per sample?)
  *
  */
 
-// TODO: Note we need to hard trim reads to remove the primers at the 5' end,
-// these mess with dada2 (overpredict chimeras)
 
 process plotQual {
-    cpus 2
-    executor 'slurm'
-    queue myQueue
-    memory "12 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
-
+  
     input:
     file allReads from dada2ReadPairsToQual.flatMap({ it[1] }).collect()
 
@@ -114,7 +94,7 @@ process plotQual {
 
     script:
     """
-    #!/usr/bin/env Rscript
+    R
     library(dada2); packageVersion("dada2")
 
     # Forward Reads
@@ -132,13 +112,8 @@ process plotQual {
 }
 
 process filterAndTrim {
-    cpus 4
-    executor 'slurm'
-    queue myQueue
-    memory "12 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
-
+  
     input:
     set pairId, file(reads) from dada2ReadPairs
 
@@ -150,7 +125,7 @@ process filterAndTrim {
 
     script:
     """
-    #!/usr/bin/env Rscript
+    R
     library(dada2); packageVersion("dada2")
 
     out <- filterAndTrim(fwd = "${reads[0]}",
@@ -174,13 +149,8 @@ process filterAndTrim {
 }
 
 process mergeTrimmedTable {
-    cpus 2
-    executor 'slurm'
-    queue myQueue
-    memory "8 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
-
+  
     input:
     file trimData from trimTracking.collect()
 
@@ -189,7 +159,7 @@ process mergeTrimmedTable {
 
     script:
     """
-    #!/usr/bin/env Rscript
+    R
     trimmedFiles <- list.files(path = '.', pattern = '*.trimmed.txt')
     sample.names <- sub('.trimmed.txt', '', trimmedFiles)
     trimmed <- do.call("rbind", lapply(trimmedFiles, function (x) as.data.frame(read.csv(x))))
@@ -208,13 +178,8 @@ process mergeTrimmedTable {
 // TODO: combine For and Rev process to reduce code duplication?
 
 process LearnErrorsFor {
-    cpus 8
-    executor 'slurm'
-    queue myQueue
-    memory "12 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-LearnErrors", mode: "link"
-
+  
     input:
     file fReads from forReads.collect()
 
@@ -223,7 +188,7 @@ process LearnErrorsFor {
 
     script:
     """
-    #!/usr/bin/env Rscript
+    R
     library(dada2);
     packageVersion("dada2")
 
@@ -242,13 +207,8 @@ process LearnErrorsFor {
 }
 
 process LearnErrorsRev {
-    cpus 8
-    executor 'slurm'
-    queue myQueue
-    memory "12 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-LearnErrors", mode: "link"
-
+  
     input:
     file rReads from revReads.collect()
 
@@ -257,7 +217,7 @@ process LearnErrorsRev {
 
     script:
     """
-    #!/usr/bin/env Rscript
+    R
     library(dada2);
     packageVersion("dada2")
 
@@ -269,7 +229,7 @@ process LearnErrorsRev {
     set.seed(100)
 
     # Learn forward error rates
-    errR <- learnErrors(filtRs, nread=1e6, multithread=${task.cpus})
+    errR <- learnErrors(filtRs, nread=1e6, multithread=${task.cpus}) //KL: there is no parameter in learnErrors called 'nread' (nreads is deprecated)
     pdf("R2.err.pdf")
     plotErrors(errR, nominalQ=TRUE)
     dev.off()
@@ -286,13 +246,8 @@ process LearnErrorsRev {
 // TODO: allow serial processing of this step?
 
 process SampleInferDerepAndMerge {
-    cpus 4
-    executor 'slurm'
-    queue myQueue
-    memory "8 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-Derep", mode: "link"
-
+  
     input:
     set val(pairId), file(filtFor), file(filtRev) from filteredReads
     file errFor from errorsFor
@@ -305,7 +260,7 @@ process SampleInferDerepAndMerge {
 
     script:
     """
-    #!/usr/bin/env Rscript
+    R
     library(dada2)
     packageVersion("dada2")
 
@@ -336,13 +291,8 @@ process SampleInferDerepAndMerge {
 // TODO: step may be obsolete if we run the above serially
 
 process mergeDadaRDS {
-    cpus 2
-    executor 'slurm'
-    queue myQueue
-    memory "8 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-Inference", mode: "link"
-
+  
     input:
     file ddFs from dadaFor.collect()
     file ddRs from dadaRev.collect()
@@ -353,7 +303,7 @@ process mergeDadaRDS {
 
     script:
     '''
-    #!/usr/bin/env Rscript
+    R
     library(dada2)
     packageVersion("dada2")
 
@@ -373,13 +323,8 @@ process mergeDadaRDS {
  */
 
 process SequenceTable {
-    cpus 2
-    executor 'slurm'
-    queue myQueue
-    memory "8 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-SeqTable", mode: "link"
-
+  
     input:
     file mr from mergedReads.collect()
 
@@ -389,7 +334,7 @@ process SequenceTable {
 
     script:
     '''
-    #!/usr/bin/env Rscript
+    R
     library(dada2)
     packageVersion("dada2")
 
@@ -414,13 +359,8 @@ if (params.species) {
 
     speciesFile = file(params.species)
     process ChimeraTaxonomySpecies {
-        cpus 24
-        executor 'slurm'
-        queue myQueue
-        memory "48 GB"
-        module dada2Mod
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "link"
-
+      
         input:
         file st from seqTable
         file ref from refFile
@@ -432,7 +372,7 @@ if (params.species) {
 
         script:
         """
-        #!/usr/bin/env Rscript
+        R
         library(dada2)
         packageVersion("dada2")
 
@@ -454,13 +394,8 @@ if (params.species) {
 } else {
 
     process ChimeraTaxonomy {
-        cpus 24
-        executor 'slurm'
-        queue myQueue
-        memory "48 GB"
-        module dada2Mod
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "link"
-
+      
         input:
         file st from seqTable
         file ref from refFile
@@ -471,7 +406,7 @@ if (params.species) {
 
         script:
         """
-        #!/usr/bin/env Rscript
+        R
         library(dada2)
         packageVersion("dada2")
 
@@ -499,13 +434,8 @@ if (params.species) {
 // TODO: break into more steps?  phangorn takes a long time...
 
 process AlignAndGenerateTree {
-    cpus 12
-    executor 'slurm'
-    queue myQueue
-    memory "12 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-Alignment", mode: "link"
-
+  
     input:
     file sTable from seqTableFinalTree
 
@@ -517,7 +447,7 @@ process AlignAndGenerateTree {
 
     script:
     """
-    #!/usr/bin/env Rscript
+    R
     library(dada2)
     library(DECIPHER)
     library(phangorn)
@@ -546,13 +476,8 @@ process AlignAndGenerateTree {
 }
 
 process BiomFile {
-    cpus 2
-    executor 'slurm'
-    queue myQueue
-    memory "8 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-BIOM", mode: "link"
-
+  
     input:
     file sTable from seqTableFinal
     file tTable from taxFinal
@@ -562,7 +487,7 @@ process BiomFile {
 
     script:
     """
-    #!/usr/bin/env Rscript
+    R
     library(biomformat)
     packageVersion("biomformat")
     seqtab <- readRDS("${sTable}")
@@ -581,13 +506,8 @@ process BiomFile {
 // Broken: needs a left-join on the initial table
 
 process ReadTracking {
-    cpus 2
-    executor 'slurm'
-    queue myQueue
-    memory "8 GB"
-    module dada2Mod
     publishDir "${params.outdir}/dada2-ReadTracking", mode: "link"
-
+  
     input:
     file trimmedTable from trimmedReadTracking
     file sTable from seqTableFinalTracking
@@ -600,8 +520,7 @@ process ReadTracking {
 
     script:
     """
-    #!/usr/bin/env Rscript
-
+    R
     library(dada2)
     packageVersion("dada2")
     library(dplyr)
@@ -628,22 +547,81 @@ process ReadTracking {
     """
 }
 
+/*
+ * Completion e-mail notification
+ */
 workflow.onComplete {
-    def subject = "[Task #${params.ticket}] BS-Seq aligment and methylaton calling pipeline"
-    def recipient = 'hpcbiohelp@igb.illinois.edu'
+  
+    //Setup email variables
+    def subject = "[uct-cbio/16S-rDNA-dada2-pipeline] successful: $workflow.runName"
+    if(!workflow.success){
+      subject = "[uct-cbio/16S-rDNA-dada2-pipeline] FAILED: $workflow.runName"
+    }
+  
+    def email_fields = [:]
+    email_fields['version'] = params.version
+    email_fields['runName'] = custom_runName ?: workflow.runName
+    email_fields['success'] = workflow.success
+    email_fields['dateComplete'] = workflow.complete
+    email_fields['duration'] = workflow.duration
+    email_fields['exitStatus'] = workflow.exitStatus
+    email_fields['errorMessage'] = (workflow.errorMessage ?: 'None')
+    email_fields['errorReport'] = (workflow.errorReport ?: 'None')
+    email_fields['commandLine'] = workflow.commandLine
+    email_fields['projectDir'] = workflow.projectDir
+    email_fields['summary'] = summary
+    email_fields['summary']['Date Started'] = workflow.start
+    email_fields['summary']['Date Completed'] = workflow.complete
+    email_fields['summary']['Pipeline script file path'] = workflow.scriptFile
+    email_fields['summary']['Pipeline script hash ID'] = workflow.scriptId
+    if(workflow.repository) email_fields['summary']['Pipeline repository Git URL'] = workflow.repository
+    if(workflow.commitId) email_fields['summary']['Pipeline repository Git Commit'] = workflow.commitId
+    if(workflow.revision) email_fields['summary']['Pipeline Git branch/tag'] = workflow.revision
+    if(workflow.container) email_fields['summary']['Docker image'] = workflow.container
 
-    finalLog = """
-Pipeline execution summary
----------------------------
-Completed at : ${workflow.complete}
-Duration     : ${workflow.duration}
-Success      : ${workflow.success}
-workDir      : ${workflow.workDir}
-exit status  : ${workflow.exitStatus}
-Error report : ${workflow.errorReport ?: '-'}
----------------------------
+    // Render the TXT template
+    def engine = new groovy.text.GStringTemplateEngine()
+    def tf = new File("$baseDir/assets/email_template.txt")
+    def txt_template = engine.createTemplate(tf).make(email_fields)
+    def email_txt = txt_template.toString()
 
-"""
+    // Render the HTML template
+    def hf = new File("$baseDir/assets/email_template.html")
+    def html_template = engine.createTemplate(hf).make(email_fields)
+    def email_html = html_template.toString()
 
-    // ['mail', '-s', subject, recipient].execute() << "${finalLog}\n${runInfo}"
+    // Render the sendmail template
+    def smail_fields = [ email: params.email, subject: subject, email_txt: email_txt, email_html: email_html, baseDir: "$baseDir" ]
+    def sf = new File("$baseDir/assets/sendmail_template.txt")
+    def sendmail_template = engine.createTemplate(sf).make(smail_fields)
+    def sendmail_html = sendmail_template.toString()
+
+    // Send the HTML e-mail
+    if (params.email) {
+        try {
+          if( params.plaintext_email ){ throw GroovyException('Send plaintext e-mail, not HTML') }
+          // Try to send HTML e-mail using sendmail
+          [ 'sendmail', '-t' ].execute() << sendmail_html
+          log.info "[uct-cbio/16S-rDNA-dada2-pipeline] Sent summary e-mail to $params.email (sendmail)"
+        } catch (all) {
+          // Catch failures and try with plaintext
+          [ 'mail', '-s', subject, params.email ].execute() << email_txt
+          log.info "[uct-cbio/16S-rDNA-dada2-pipeline] Sent summary e-mail to $params.email (mail)"
+        }
+    }
+  // Switch the embedded MIME images with base64 encoded src
+    uctlogo = new File("$baseDir/assets/UCT_logo.png").bytes.encodeBase64().toString()
+    cbiologo = new File("$baseDir/assets/cbio_logo.png").bytes.encodeBase64().toString()
+    email_html = email_html.replaceAll(~/cid:uctlogo/, "data:image/png;base64,$uctlogo")
+    email_html = email_html.replaceAll(~/cid:cbiologo/, "data:image/png;base64,$cbiologo")
+
+    // Write summary e-mail HTML to a file
+    def output_d = new File( "${params.outdir}/Documentation/" )
+    if( !output_d.exists() ) {
+      output_d.mkdirs()
+    }
+    def output_hf = new File( output_d, "pipeline_report.html" )
+    output_hf.withWriter { w -> w << email_html }
+    def output_tf = new File( output_d, "pipeline_report.txt" )
+    output_tf.withWriter { w -> w << email_txt }
 }
