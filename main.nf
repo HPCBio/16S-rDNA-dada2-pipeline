@@ -95,8 +95,6 @@ process plotQual {
 
     script:
     """
-    #!/usr/bin/env Rscript
-   
     library(dada2); packageVersion("dada2")
 
     # Forward Reads
@@ -128,7 +126,6 @@ process filterAndTrim {
 
     script:
     """
-    #!/usr/bin/env Rscript
     library(dada2); packageVersion("dada2")
 
     out <- filterAndTrim(fwd = "${reads[0]}",
