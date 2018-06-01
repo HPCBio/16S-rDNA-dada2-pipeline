@@ -96,7 +96,7 @@ process plotQual {
     script:
     """
     #!/bin/bash
-    Rscript --vanilla '.git/bin/plotQual.R'
+    Rscript --vanilla '/researchdata/fhgfs/katie/dada2-test/plotQual.R'
     """
 }
 
@@ -116,7 +116,7 @@ process filterAndTrim {
     script:
     """
     #!/bin/bash
-    Rscript --vanilla '.git/bin/filterAndTrim.R'
+    Rscript --vanilla '/researchdata/fhgfs/katie/dada2-test/filterAndTrim.R'
     """
 }
 
