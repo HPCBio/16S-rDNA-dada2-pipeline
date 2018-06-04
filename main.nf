@@ -147,7 +147,7 @@ process mergeTrimmedTable {
 
     script:
     """
-    R
+    #!/usr/bin/env Rscript
     trimmedFiles <- list.files(path = '.', pattern = '*.trimmed.txt')
     sample.names <- sub('.trimmed.txt', '', trimmedFiles)
     trimmed <- do.call("rbind", lapply(trimmedFiles, function (x) as.data.frame(read.csv(x))))
@@ -176,7 +176,7 @@ process LearnErrorsFor {
 
     script:
     """
-    R
+    #!/usr/bin/env Rscript
     library(dada2);
     packageVersion("dada2")
 
@@ -205,7 +205,7 @@ process LearnErrorsRev {
 
     script:
     """
-    R
+    #!/usr/bin/env Rscript
     library(dada2);
     packageVersion("dada2")
 
@@ -248,7 +248,7 @@ process SampleInferDerepAndMerge {
 
     script:
     """
-    R
+    #!/usr/bin/env Rscript
     library(dada2)
     packageVersion("dada2")
 
@@ -291,7 +291,7 @@ process mergeDadaRDS {
 
     script:
     '''
-    R
+    #!/usr/bin/env Rscript
     library(dada2)
     packageVersion("dada2")
 
@@ -322,7 +322,7 @@ process SequenceTable {
 
     script:
     '''
-    R
+    #!/usr/bin/env Rscript
     library(dada2)
     packageVersion("dada2")
 
@@ -360,7 +360,7 @@ if (params.species) {
 
         script:
         """
-        R
+        #!/usr/bin/env Rscript
         library(dada2)
         packageVersion("dada2")
 
@@ -394,7 +394,7 @@ if (params.species) {
 
         script:
         """
-        R
+        #!/usr/bin/env Rscript
         library(dada2)
         packageVersion("dada2")
 
@@ -435,7 +435,7 @@ process AlignAndGenerateTree {
 
     script:
     """
-    R
+    #!/usr/bin/env Rscript
     library(dada2)
     library(DECIPHER)
     library(phangorn)
@@ -475,7 +475,7 @@ process BiomFile {
 
     script:
     """
-    R
+    #!/usr/bin/env Rscript
     library(biomformat)
     packageVersion("biomformat")
     seqtab <- readRDS("${sTable}")
@@ -508,7 +508,7 @@ process ReadTracking {
 
     script:
     """
-    R
+    #!/usr/bin/env Rscript
     library(dada2)
     packageVersion("dada2")
     library(dplyr)
