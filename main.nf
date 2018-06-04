@@ -95,8 +95,7 @@ process plotQual {
 
     script:
     """
-    #!/bin/bash
-    Rscript --vanilla
+    #!/usr/bin/env Rscript
     library(dada2); packageVersion("dada2")
 
     # Forward Reads
@@ -128,10 +127,8 @@ process filterAndTrim {
 
     script:
     """
-    #!/bin/bash
-    Rscript --vanilla
+    #!/usr/bin/env Rscript
     library(dada2); packageVersion("dada2")
-
     out <- filterAndTrim(fwd = "${reads[0]}",
                         filt = paste0("${pairId}", ".R1.filtered.fastq.gz"),
                         rev = "${reads[1]}",
@@ -147,7 +144,6 @@ process filterAndTrim {
                         compress = TRUE,
                         verbose = TRUE,
                         multithread = ${task.cpus})
-
     write.csv(out, paste0("${pairId}", ".trimmed.txt"))
     """
 }
@@ -164,7 +160,7 @@ process mergeTrimmedTable {
 
     script:
     """
-    R
+    #!/usr/bin/env Rscript
     trimmedFiles <- list.files(path = '.', pattern = '*.trimmed.txt')
     sample.names <- sub('.trimmed.txt', '', trimmedFiles)
     trimmed <- do.call("rbind", lapply(trimmedFiles, function (x) as.data.frame(read.csv(x))))
@@ -193,7 +189,7 @@ process LearnErrorsFor {
 
     script:
     """
-    R
+    #!/usr/bin/env Rscript
     library(dada2);
     packageVersion("dada2")
 
@@ -222,7 +218,7 @@ process LearnErrorsRev {
 
     script:
     """
-    R
+    #!/usr/bin/env Rscript
     library(dada2);
     packageVersion("dada2")
 
@@ -265,7 +261,7 @@ process SampleInferDerepAndMerge {
 
     script:
     """
-    R
+    #!/usr/bin/env Rscript
     library(dada2)
     packageVersion("dada2")
 
@@ -308,7 +304,7 @@ process mergeDadaRDS {
 
     script:
     '''
-    R
+    #!/usr/bin/env Rscript
     library(dada2)
     packageVersion("dada2")
 
@@ -339,7 +335,7 @@ process SequenceTable {
 
     script:
     '''
-    R
+    #!/usr/bin/env Rscript
     library(dada2)
     packageVersion("dada2")
 
@@ -377,7 +373,7 @@ if (params.species) {
 
         script:
         """
-        R
+        #!/usr/bin/env Rscript
         library(dada2)
         packageVersion("dada2")
 
@@ -411,7 +407,7 @@ if (params.species) {
 
         script:
         """
-        R
+        #!/usr/bin/env Rscript
         library(dada2)
         packageVersion("dada2")
 
@@ -452,7 +448,7 @@ process AlignAndGenerateTree {
 
     script:
     """
-    R
+    #!/usr/bin/env Rscript
     library(dada2)
     library(DECIPHER)
     library(phangorn)
@@ -492,7 +488,7 @@ process BiomFile {
 
     script:
     """
-    R
+    #!/usr/bin/env Rscript
     library(biomformat)
     packageVersion("biomformat")
     seqtab <- readRDS("${sTable}")
@@ -525,7 +521,7 @@ process ReadTracking {
 
     script:
     """
-    R
+    #!/usr/bin/env Rscript
     library(dada2)
     packageVersion("dada2")
     library(dplyr)
@@ -555,78 +551,20 @@ process ReadTracking {
 /*
  * Completion e-mail notification
  */
+
 workflow.onComplete {
-  
-    //Setup email variables
-    def subject = "[uct-cbio/16S-rDNA-dada2-pipeline] successful: $workflow.runName"
-    if(!workflow.success){
-      subject = "[uct-cbio/16S-rDNA-dada2-pipeline] FAILED: $workflow.runName"
-    }
-  
-    def email_fields = [:]
-    email_fields['version'] = params.version
-    email_fields['runName'] = custom_runName ?: workflow.runName
-    email_fields['success'] = workflow.success
-    email_fields['dateComplete'] = workflow.complete
-    email_fields['duration'] = workflow.duration
-    email_fields['exitStatus'] = workflow.exitStatus
-    email_fields['errorMessage'] = (workflow.errorMessage ?: 'None')
-    email_fields['errorReport'] = (workflow.errorReport ?: 'None')
-    email_fields['commandLine'] = workflow.commandLine
-    email_fields['projectDir'] = workflow.projectDir
-    email_fields['summary'] = summary
-    email_fields['summary']['Date Started'] = workflow.start
-    email_fields['summary']['Date Completed'] = workflow.complete
-    email_fields['summary']['Pipeline script file path'] = workflow.scriptFile
-    email_fields['summary']['Pipeline script hash ID'] = workflow.scriptId
-    if(workflow.repository) email_fields['summary']['Pipeline repository Git URL'] = workflow.repository
-    if(workflow.commitId) email_fields['summary']['Pipeline repository Git Commit'] = workflow.commitId
-    if(workflow.revision) email_fields['summary']['Pipeline Git branch/tag'] = workflow.revision
-    if(workflow.container) email_fields['summary']['Docker image'] = workflow.container
 
-    // Render the TXT template
-    def engine = new groovy.text.GStringTemplateEngine()
-    def tf = new File("$baseDir/assets/email_template.txt")
-    def txt_template = engine.createTemplate(tf).make(email_fields)
-    def email_txt = txt_template.toString()
-
-    // Render the HTML template
-    def hf = new File("$baseDir/assets/email_template.html")
-    def html_template = engine.createTemplate(hf).make(email_fields)
-    def email_html = html_template.toString()
-
-    // Render the sendmail template
-    def smail_fields = [ email: params.email, subject: subject, email_txt: email_txt, email_html: email_html, baseDir: "$baseDir" ]
-    def sf = new File("$baseDir/assets/sendmail_template.txt")
-    def sendmail_template = engine.createTemplate(sf).make(smail_fields)
-    def sendmail_html = sendmail_template.toString()
-
-    // Send the HTML e-mail
-    if (params.email) {
-        try {
-          if( params.plaintext_email ){ throw GroovyException('Send plaintext e-mail, not HTML') }
-          // Try to send HTML e-mail using sendmail
-          [ 'sendmail', '-t' ].execute() << sendmail_html
-          log.info "[uct-cbio/16S-rDNA-dada2-pipeline] Sent summary e-mail to $params.email (sendmail)"
-        } catch (all) {
-          // Catch failures and try with plaintext
-          [ 'mail', '-s', subject, params.email ].execute() << email_txt
-          log.info "[uct-cbio/16S-rDNA-dada2-pipeline] Sent summary e-mail to $params.email (mail)"
-        }
-    }
-  // Switch the embedded MIME images with base64 encoded src
-    uctlogo = new File("$baseDir/assets/UCT_logo.png").bytes.encodeBase64().toString()
-    cbiologo = new File("$baseDir/assets/cbio_logo.png").bytes.encodeBase64().toString()
-    email_html = email_html.replaceAll(~/cid:uctlogo/, "data:image/png;base64,$uctlogo")
-    email_html = email_html.replaceAll(~/cid:cbiologo/, "data:image/png;base64,$cbiologo")
-
-    // Write summary e-mail HTML to a file
-    def output_d = new File( "${params.outdir}/Documentation/" )
-    if( !output_d.exists() ) {
-      output_d.mkdirs()
-    }
-    def output_hf = new File( output_d, "pipeline_report.html" )
-    output_hf.withWriter { w -> w << email_html }
-    def output_tf = new File( output_d, "pipeline_report.txt" )
-    output_tf.withWriter { w -> w << email_txt }
+    println ( workflow.success ? """
+        Pipeline execution summary
+        ---------------------------
+        Completed at: ${workflow.complete}
+        Duration    : ${workflow.duration}
+        Success     : ${workflow.success}
+        workDir     : ${workflow.workDir}
+        exit status : ${workflow.exitStatus}
+        """ : """
+        Failed: ${workflow.errorReport}
+        exit status : ${workflow.exitStatus}
+        """
+    )
 }
