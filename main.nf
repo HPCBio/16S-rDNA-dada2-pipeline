@@ -199,7 +199,7 @@ process LearnErrorsFor {
     set.seed(100)
 
     # Learn forward error rates
-    errF <- learnErrors(filtFs, multithread=${task.cpus}) //remove 'nread' parameter - deprecated
+    errF <- learnErrors(filtFs, multithread=${task.cpus})
     pdf("R1.err.pdf")
     plotErrors(errF, nominalQ=TRUE)
     dev.off()
@@ -230,7 +230,7 @@ process LearnErrorsRev {
     set.seed(100)
 
     # Learn forward error rates
-    errR <- learnErrors(filtRs, multithread=${task.cpus}) //removed learnErrors 'nread' deprecated)
+    errR <- learnErrors(filtRs, multithread=${task.cpus})
     pdf("R2.err.pdf")
     plotErrors(errR, nominalQ=TRUE)
     dev.off()
