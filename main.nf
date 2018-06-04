@@ -86,6 +86,7 @@ summary['trimFor'] = params.trimFor
 summary['trimRev'] = params.trimRev
 summary['truncFor'] = params.truncFor
 summary['truncRev'] = params.truncRev
+summary['truncQ'] = params.truncQ
 summary['maxEEFor'] = params.maxEEFor
 summary['maxEERev'] = params.maxEERev
 summary['maxN'] = params.maxN
