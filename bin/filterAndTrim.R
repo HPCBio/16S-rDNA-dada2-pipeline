@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 library(dada2); packageVersion("dada2")
     out <- filterAndTrim(fwd = "${reads[0]}",
                         filt = paste0("${pairId}", ".R1.filtered.fastq.gz"),
