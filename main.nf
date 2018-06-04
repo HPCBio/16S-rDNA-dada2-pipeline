@@ -75,6 +75,47 @@ Channel
 
 refFile = file(params.reference)
 
+// Header log info
+log.info "==================================="
+log.info " uct-cbio/16S-rDNA-dada2-pipeline  ~  version ${params.version}"
+log.info "==================================="
+def summary = [:]
+summary['Run Name']     = custom_runName ?: workflow.runName
+summary['Reads']        = params.reads
+summary['trimFor'] = params.trimFor
+summary['trimRev'] = params.trimRev
+summary['truncFor'] = params.truncFor
+summary['truncRev'] = params.truncRev
+summary['maxEEFor'] = params.maxEEFor
+summary['maxEERev'] = params.maxEERev
+summary['maxN'] = params.maxN
+summary['maxLen'] = params.maxLen
+summary['minLen'] = params.minLen
+summary['rmPhiX'] = params.rmPhiX
+summary['minOverlap'] = params.minOverlap
+summary['maxMismatch'] = params.maxMismatch
+summary['trimOverhang'] = params.trimOverhang
+summary['species'] = params.species
+summary['pool'] = params.pool
+summary['Reference'] = params.reference
+summary['Max Memory']     = params.max_memory
+summary['Max CPUs']       = params.max_cpus
+summary['Max Time']       = params.max_time
+summary['Output dir']     = params.outdir
+summary['Working dir']    = workflow.workDir
+summary['Container']      = workflow.container
+if(workflow.revision) summary['Pipeline Release'] = workflow.revision
+summary['Current home']   = "$HOME"
+summary['Current user']   = "$USER"
+summary['Current path']   = "$PWD"
+summary['Script dir']     = workflow.projectDir
+summary['Config Profile'] = workflow.profile
+if(params.email) {
+    summary['E-mail Address'] = params.email
+}
+log.info summary.collect { k,v -> "${k.padRight(15)}: $v" }.join("\n")
+log.info "========================================="
+
 /*
  *
  * Step 1: Filter and trim (run per sample?)
