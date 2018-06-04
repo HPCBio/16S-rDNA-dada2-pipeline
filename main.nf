@@ -150,7 +150,7 @@ process filterAndTrim {
 
 process mergeTrimmedTable {
     tag { "${params.projectName}.mergTrimmedTable" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy"
   
     input:
     file trimData from trimTracking.collect()
@@ -179,7 +179,7 @@ process mergeTrimmedTable {
 // TODO: combine For and Rev process to reduce code duplication?
 
 process LearnErrorsFor {
-    publishDir "${params.outdir}/dada2-LearnErrors", mode: "link"
+    publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy"
   
     input:
     file fReads from forReads.collect()
@@ -208,7 +208,7 @@ process LearnErrorsFor {
 }
 
 process LearnErrorsRev {
-    publishDir "${params.outdir}/dada2-LearnErrors", mode: "link"
+    publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy"
   
     input:
     file rReads from revReads.collect()
@@ -247,7 +247,7 @@ process LearnErrorsRev {
 // TODO: allow serial processing of this step?
 
 process SampleInferDerepAndMerge {
-    publishDir "${params.outdir}/dada2-Derep", mode: "link"
+    publishDir "${params.outdir}/dada2-Derep", mode: "copy"
   
     input:
     set val(pairId), file(filtFor), file(filtRev) from filteredReads
@@ -292,7 +292,7 @@ process SampleInferDerepAndMerge {
 // TODO: step may be obsolete if we run the above serially
 
 process mergeDadaRDS {
-    publishDir "${params.outdir}/dada2-Inference", mode: "link"
+    publishDir "${params.outdir}/dada2-Inference", mode: "copy"
   
     input:
     file ddFs from dadaFor.collect()
@@ -324,7 +324,7 @@ process mergeDadaRDS {
  */
 
 process SequenceTable {
-    publishDir "${params.outdir}/dada2-SeqTable", mode: "link"
+    publishDir "${params.outdir}/dada2-SeqTable", mode: "copy"
   
     input:
     file mr from mergedReads.collect()
@@ -360,7 +360,7 @@ if (params.species) {
 
     speciesFile = file(params.species)
     process ChimeraTaxonomySpecies {
-        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "link"
+        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy"
       
         input:
         file st from seqTable
@@ -395,7 +395,7 @@ if (params.species) {
 } else {
 
     process ChimeraTaxonomy {
-        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "link"
+        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy"
       
         input:
         file st from seqTable
@@ -435,7 +435,7 @@ if (params.species) {
 // TODO: break into more steps?  phangorn takes a long time...
 
 process AlignAndGenerateTree {
-    publishDir "${params.outdir}/dada2-Alignment", mode: "link"
+    publishDir "${params.outdir}/dada2-Alignment", mode: "copy"
   
     input:
     file sTable from seqTableFinalTree
@@ -477,7 +477,7 @@ process AlignAndGenerateTree {
 }
 
 process BiomFile {
-    publishDir "${params.outdir}/dada2-BIOM", mode: "link"
+    publishDir "${params.outdir}/dada2-BIOM", mode: "copy"
   
     input:
     file sTable from seqTableFinal
@@ -507,7 +507,7 @@ process BiomFile {
 // Broken: needs a left-join on the initial table
 
 process ReadTracking {
-    publishDir "${params.outdir}/dada2-ReadTracking", mode: "link"
+    publishDir "${params.outdir}/dada2-ReadTracking", mode: "copy"
   
     input:
     file trimmedTable from trimmedReadTracking
