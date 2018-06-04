@@ -84,7 +84,7 @@ refFile = file(params.reference)
 
 process plotQual {
     tag { "plotQ" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy"
   
     input:
     file allReads from dada2ReadPairsToQual.flatMap({ it[1] }).collect()
@@ -114,7 +114,7 @@ process plotQual {
 
 process filterAndTrim {
     tag { "filterAndTrim" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "link"
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy"
   
     input:
     set pairId, file(reads) from dada2ReadPairs
@@ -199,7 +199,7 @@ process LearnErrorsFor {
     set.seed(100)
 
     # Learn forward error rates
-    errF <- learnErrors(filtFs, nread=1e6, multithread=${task.cpus})
+    errF <- learnErrors(filtFs, multithread=${task.cpus}) //remove 'nread' parameter - deprecated
     pdf("R1.err.pdf")
     plotErrors(errF, nominalQ=TRUE)
     dev.off()
@@ -230,7 +230,7 @@ process LearnErrorsRev {
     set.seed(100)
 
     # Learn forward error rates
-    errR <- learnErrors(filtRs, nread=1e6, multithread=${task.cpus}) //KL: there is no parameter in learnErrors called 'nread' (nreads is deprecated)
+    errR <- learnErrors(filtRs, multithread=${task.cpus}) //removed learnErrors 'nread' deprecated)
     pdf("R2.err.pdf")
     plotErrors(errR, nominalQ=TRUE)
     dev.off()
