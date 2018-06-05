@@ -320,7 +320,7 @@ process SampleInferDerepAndMerge {
     merger <- mergePairs(ddF, derepF, ddR, derepR,
         minOverlap = ${params.minOverlap},
         maxMismatch = ${params.maxMismatch},
-        trimOverhang = TRUE
+        trimOverhang = ${params.trimOverhang}
         )
 
     # TODO: make this a single item list with ID as the name, this is lost
