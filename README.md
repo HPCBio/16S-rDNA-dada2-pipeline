@@ -23,7 +23,7 @@ A dada2-based workflow using the Nextflow workflow manager.  The basic pipeline 
 
 ## Prerequisites
 
-Nextflow, dada2 (>= 1.8), R (>= 3.2.0), Rcpp (>= 0.11.2), methods (>= 3.2.0)
+Nextflow, dada2 (>= 1.8), R (>= 3.2.0), Rcpp (>= 0.11.2), methods (>= 3.2.0), DECIPHER, phangorn, biomformat
 
 ## Documentation
 The uct-cbio/16S-rDNA-dada2-pipeline pipeline comes with documentation about the pipeline, found in the `docs/` directory:
