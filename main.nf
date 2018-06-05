@@ -312,10 +312,10 @@ process SampleInferDerepAndMerge {
     cat("Processing:", "${pairId}", "\\n")
 
     derepF <- derepFastq("${filtFor}")
-    ddF <- dada(derepF, err=errF, multithread=${task.cpus})
+    ddF <- dada(derepF, err=errF, multithread=${task.cpus}, pool=${params.pool})
 
     derepR <- derepFastq("${filtRev}")
-    ddR <- dada(derepR, err=errR, multithread=${task.cpus})
+    ddR <- dada(derepR, err=errR, multithread=${task.cpus},pool=${params.pool})
 
     merger <- mergePairs(ddF, derepF, ddR, derepR,
         minOverlap = ${params.minOverlap},
