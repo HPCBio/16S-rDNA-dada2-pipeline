@@ -25,6 +25,7 @@ def helpMessage() {
       --trimRev                     Set length of R2 (--trimRev) that needs to be trimmed (set 0 if no trimming is needed)
       --reference                   Path to taxonomic database to be used for annotation (e.g. gg_13_8_train_set_97.fa.gz)
     Other options:
+      --pool                        Should sample pooling be used to aid identification of low-abundance ASVs? Options are "pseudo", "TRUE", "FALSE"
       --outdir                      The output directory where the results will be saved
       --email                       Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits
       -name                         Name for the pipeline run. If not specified, Nextflow will automatically generate a random mnemonic.
@@ -312,10 +313,10 @@ process SampleInferDerepAndMerge {
     cat("Processing:", "${pairId}", "\\n")
 
     derepF <- derepFastq("${filtFor}")
-    ddF <- dada(derepF, err=errF, multithread=${task.cpus}, pool=${params.pool})
+    ddF <- dada(derepF, err=errF, multithread=${task.cpus}, pool="${params.pool}")
 
     derepR <- derepFastq("${filtRev}")
-    ddR <- dada(derepR, err=errR, multithread=${task.cpus},pool=${params.pool})
+    ddR <- dada(derepR, err=errR, multithread=${task.cpus},pool="${params.pool"})
 
     merger <- mergePairs(ddF, derepF, ddR, derepR,
         minOverlap = ${params.minOverlap},
