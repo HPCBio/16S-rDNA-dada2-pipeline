@@ -192,7 +192,7 @@ process filterAndTrim {
 }
 
 process mergeTrimmedTable {
-    tag { "${params.projectName}.mergTrimmedTable" }
+    tag { "mergTrimmedTable" }
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy"
   
     input:
@@ -222,6 +222,7 @@ process mergeTrimmedTable {
 // TODO: combine For and Rev process to reduce code duplication?
 
 process LearnErrorsFor {
+    tag { "LearnErrorsFor" }
     publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy"
   
     input:
@@ -251,6 +252,7 @@ process LearnErrorsFor {
 }
 
 process LearnErrorsRev {
+    tag { "LearnErrorsRev" }
     publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy"
   
     input:
@@ -290,6 +292,7 @@ process LearnErrorsRev {
 // TODO: allow serial processing of this step?
 
 process SampleInferDerepAndMerge {
+    tag { "SampleInferDerepAndMerge" }
     publishDir "${params.outdir}/dada2-Derep", mode: "copy"
   
     input:
@@ -336,6 +339,7 @@ process SampleInferDerepAndMerge {
 // TODO: step may be obsolete if we run the above serially
 
 process mergeDadaRDS {
+    tag { "mergeDadaRDS" }
     publishDir "${params.outdir}/dada2-Inference", mode: "copy"
   
     input:
@@ -368,6 +372,7 @@ process mergeDadaRDS {
  */
 
 process SequenceTable {
+    tag { "SequenceTable" }
     publishDir "${params.outdir}/dada2-SeqTable", mode: "copy"
   
     input:
@@ -403,7 +408,9 @@ process SequenceTable {
 if (params.species) {
 
     speciesFile = file(params.species)
+  
     process ChimeraTaxonomySpecies {
+        tag { "ChimeraTaxonomySpecies" }
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy"
       
         input:
@@ -439,6 +446,7 @@ if (params.species) {
 } else {
 
     process ChimeraTaxonomy {
+        tag { "ChimeraTaxonomy" }
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy"
       
         input:
@@ -479,6 +487,7 @@ if (params.species) {
 // TODO: break into more steps?  phangorn takes a long time...
 
 process AlignAndGenerateTree {
+    tag { "AlignAndGenerateTree" }
     publishDir "${params.outdir}/dada2-Alignment", mode: "copy"
   
     input:
@@ -521,6 +530,7 @@ process AlignAndGenerateTree {
 }
 
 process BiomFile {
+    tag { "BiomFile" }
     publishDir "${params.outdir}/dada2-BIOM", mode: "copy"
   
     input:
@@ -551,6 +561,7 @@ process BiomFile {
 // Broken: needs a left-join on the initial table
 
 process ReadTracking {
+    tag { "ReadTracking" }
     publishDir "${params.outdir}/dada2-ReadTracking", mode: "copy"
   
     input:
