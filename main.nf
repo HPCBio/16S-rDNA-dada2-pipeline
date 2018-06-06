@@ -314,9 +314,18 @@ process SampleInferDerepAndMerge {
     errF <- readRDS("${errFor}")
     errR <- readRDS("${errRev}")
     cat("Processing:", "${pairId}", "\\n")
-
+    
+    #Variable selection from CLI input flag --pool
+    if("${params.pool}"=="pseudo"){
+      pool <- "pseudo"
+    } else if("${params.pool}"=="F"){
+      pool <- FALSE
+    } else if("${params.pool}"=="T"){
+      pool <- TRUE 
+    }
+    
     derepF <- derepFastq("${filtFor}")
-    pool=ifelse("${params.pool}"=="pseudo","pseudo",${params.pool}) #preserve logical for TRUE/FALSE and character for "pool"
+    
     ddF <- dada(derepF, err=errF, multithread=${task.cpus}, pool=pool)
 
     derepR <- derepFastq("${filtRev}")
