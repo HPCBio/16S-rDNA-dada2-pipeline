@@ -316,6 +316,7 @@ process SampleInferDerepAndMerge {
     cat("Processing:", "${pairId}", "\\n")
     
     #Variable selection from CLI input flag --pool
+    print(${params.pool})
     if("${params.pool}"=="pseudo"){
       pool <- "pseudo"
     } else if("${params.pool}"=="F"){
@@ -323,7 +324,7 @@ process SampleInferDerepAndMerge {
     } else if("${params.pool}"=="T"){
       pool <- TRUE 
     }
-    
+    print(pool)
     derepF <- derepFastq("${filtFor}")
     
     ddF <- dada(derepF, err=errF, multithread=${task.cpus}, pool=pool)
