@@ -11,35 +11,24 @@
 <body>
 <div style="font-family: Helvetica, Arial, sans-serif; padding: 30px; max-width: 800px; margin: 0 auto;">
 
-<img src="cid:ngirnaseqlogo">
+<img src="cid:cbiologo">
 
-<h1>nfcore/RNAseq: version ${version}</h1>
+<h1>uct-cbio/16S-rDNA-dada2-pipeline: version ${version}</h1>
 <h2>Run Name: $runName</h2>
 
 <% if (!success){
     out << """
     <div style="color: #a94442; background-color: #f2dede; border-color: #ebccd1; padding: 15px; margin-bottom: 20px; border: 1px solid transparent; border-radius: 4px;">
-        <h4 style="margin-top:0; color: inherit;">nfcore/RNAseq execution completed unsuccessfully!</h4>
+        <h4 style="margin-top:0; color: inherit;">uct-cbio/16S-rDNA-dada2-pipeline completed unsuccessfully!</h4>
         <p>The exit status of the task that caused the workflow execution to fail was: <code>$exitStatus</code>.</p>
         <p>The full error message was:</p>
         <pre style="white-space: pre-wrap; overflow: visible; margin-bottom: 0;">${errorReport}</pre>
     </div>
     """
-} else if(skipped_poor_alignment.size() > 0) {
-    out << """
-    <div style="color: #856404; background-color: #fff3cd; border-color: #ffeeba; padding: 15px; margin-bottom: 20px; border: 1px solid transparent; border-radius: 4px;">
-        <h4 style="margin-top:0; color: inherit;">nfcore/RNAseq execution completed with warnings!</h4>
-        <p>The pipeline finished successfully, but the following samples were skipped due to very low alignment (&lt; 5%):</p>
-        <ul>
-            <li><code>${skipped_poor_alignment.join('</code></li><li><code>')}</code></li>
-        </ul>
-        <p>
-    </div>
-    """
 } else {
     out << """
     <div style="color: #3c763d; background-color: #dff0d8; border-color: #d6e9c6; padding: 15px; margin-bottom: 20px; border: 1px solid transparent; border-radius: 4px;">
-        nfcore/RNAseq execution completed successfully!
+        uct-cbio/16S-rDNA-dada2-pipeline execution completed successfully!
     </div>
     """
 }
