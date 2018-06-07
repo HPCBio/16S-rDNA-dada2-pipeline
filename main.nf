@@ -24,11 +24,29 @@ def helpMessage() {
       --trimFor                     Set length of R1 (--trimFor) that needs to be trimmed (set 0 if no trimming is needed)
       --trimRev                     Set length of R2 (--trimRev) that needs to be trimmed (set 0 if no trimming is needed)
       --reference                   Path to taxonomic database to be used for annotation (e.g. gg_13_8_train_set_97.fa.gz)
-    Other options:
-      --pool                        Should sample pooling be used to aid identification of low-abundance ASVs? Options are "pseudo", "TRUE", "FALSE"
+    Other arguments:
+      --pool                        Should sample pooling be used to aid identification of low-abundance ASVs? Options are pseudo pooling: "pseudo", true: "T", false: "F"
       --outdir                      The output directory where the results will be saved
       --email                       Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits
       -name                         Name for the pipeline run. If not specified, Nextflow will automatically generate a random mnemonic.
+    Trimming arguments (optional):
+      --truncFor                    Select minimum acceptable length for R1 (--truncFor). Reads shorter than this are discarded (default 0, no trimming).
+      --truncRev                    Select minimum acceptable length for R2 (--truncRev). Reads shorter than this are discarded (default 0, no trimming).
+      --maxEEFor                    After truncation, R1 reads with higher than maxEE "expected errors" will be discarded. EE = sum(10^(-Q/10)), default=2
+      --maxEERev                    After truncation, R2 reads with higher than maxEE "expected errors" will be discarded. EE = sum(10^(-Q/10)), default=2
+      --truncQ                      Truncate reads at the first instance of a quality score less than or equal to truncQ; default=2
+      --maxN                        After truncation, sequences with more than maxN Ns will be discarded. Note that dada() does not allow Ns; default=0
+      --maxLen                      Remove reads with length greater than maxLen. maxLen is enforced before trimming and truncation; default=Inf (no maximum)
+      --minLen                      Remove reads with length less than minLen. minLen is enforced after trimming and truncation; default=20
+
+      Merging arguments (optional):
+      --minOverlap                  The minimum length of the overlap required for merging R1 and R2; default=20 (dada2 package default=12)
+      --maxMismatch                 The maximum mismatches allowed in the overlap region; default=0.
+      --trimOverhang                If "T" (true), "overhangs" in the alignment between R1 and R2 are trimmed off. "Overhangs" are when R2 extends past the start of R1, and vice-versa, as can happen
+                                    when reads are longer than the amplicon and read into the other-direction primer region. Default="F" (false)
+      
+      Taxonomic arguments (optional):
+      --species                     Specify path to fasta file. See dada2 addSpecies() for more detail.
     """.stripIndent()
 }
 
@@ -332,10 +350,18 @@ process SampleInferDerepAndMerge {
     derepR <- derepFastq("${filtRev}")
     ddR <- dada(derepR, err=errR, multithread=${task.cpus},pool=pool)
 
+    #Variable selection from CLI input flag --trimOverhang
+    print(${params.trimOverhang})
+    if("${params.trimOverhang}"=="F"){
+      trimOverhang <- FALSE
+    } else if("${params.trimOverhang}"=="T"){
+      trimOverhang <- TRUE
+    print(trimOverhang)
+    
     merger <- mergePairs(ddF, derepF, ddR, derepR,
         minOverlap = ${params.minOverlap},
         maxMismatch = ${params.maxMismatch},
-        trimOverhang = ${params.trimOverhang}
+        trimOverhang = trimOverhang
         )
 
     # TODO: make this a single item list with ID as the name, this is lost
