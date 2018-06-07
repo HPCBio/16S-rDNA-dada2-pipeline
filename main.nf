@@ -24,10 +24,29 @@ def helpMessage() {
       --trimFor                     Set length of R1 (--trimFor) that needs to be trimmed (set 0 if no trimming is needed)
       --trimRev                     Set length of R2 (--trimRev) that needs to be trimmed (set 0 if no trimming is needed)
       --reference                   Path to taxonomic database to be used for annotation (e.g. gg_13_8_train_set_97.fa.gz)
-    Other options:
+    Other arguments:
+      --pool                        Should sample pooling be used to aid identification of low-abundance ASVs? Options are pseudo pooling: "pseudo", true: "T", false: "F"
       --outdir                      The output directory where the results will be saved
       --email                       Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits
       -name                         Name for the pipeline run. If not specified, Nextflow will automatically generate a random mnemonic.
+    Trimming arguments (optional):
+      --truncFor                    Select minimum acceptable length for R1 (--truncFor). Reads shorter than this are discarded (default 0, no trimming).
+      --truncRev                    Select minimum acceptable length for R2 (--truncRev). Reads shorter than this are discarded (default 0, no trimming).
+      --maxEEFor                    After truncation, R1 reads with higher than maxEE "expected errors" will be discarded. EE = sum(10^(-Q/10)), default=2
+      --maxEERev                    After truncation, R2 reads with higher than maxEE "expected errors" will be discarded. EE = sum(10^(-Q/10)), default=2
+      --truncQ                      Truncate reads at the first instance of a quality score less than or equal to truncQ; default=2
+      --maxN                        After truncation, sequences with more than maxN Ns will be discarded. Note that dada() does not allow Ns; default=0
+      --maxLen                      Remove reads with length greater than maxLen. maxLen is enforced before trimming and truncation; default=Inf (no maximum)
+      --minLen                      Remove reads with length less than minLen. minLen is enforced after trimming and truncation; default=20
+
+      Merging arguments (optional):
+      --minOverlap                  The minimum length of the overlap required for merging R1 and R2; default=20 (dada2 package default=12)
+      --maxMismatch                 The maximum mismatches allowed in the overlap region; default=0.
+      --trimOverhang                If "T" (true), "overhangs" in the alignment between R1 and R2 are trimmed off. "Overhangs" are when R2 extends past the start of R1, and vice-versa, as can happen
+                                    when reads are longer than the amplicon and read into the other-direction primer region. Default="F" (false)
+      
+      Taxonomic arguments (optional):
+      --species                     Specify path to fasta file. See dada2 addSpecies() for more detail.
     """.stripIndent()
 }
 
@@ -191,7 +210,7 @@ process filterAndTrim {
 }
 
 process mergeTrimmedTable {
-    tag { "${params.projectName}.mergTrimmedTable" }
+    tag { "mergTrimmedTable" }
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy"
   
     input:
@@ -221,6 +240,7 @@ process mergeTrimmedTable {
 // TODO: combine For and Rev process to reduce code duplication?
 
 process LearnErrorsFor {
+    tag { "LearnErrorsFor" }
     publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy"
   
     input:
@@ -250,6 +270,7 @@ process LearnErrorsFor {
 }
 
 process LearnErrorsRev {
+    tag { "LearnErrorsRev" }
     publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy"
   
     input:
@@ -289,6 +310,7 @@ process LearnErrorsRev {
 // TODO: allow serial processing of this step?
 
 process SampleInferDerepAndMerge {
+    tag { "SampleInferDerepAndMerge" }
     publishDir "${params.outdir}/dada2-Derep", mode: "copy"
   
     input:
@@ -310,17 +332,36 @@ process SampleInferDerepAndMerge {
     errF <- readRDS("${errFor}")
     errR <- readRDS("${errRev}")
     cat("Processing:", "${pairId}", "\\n")
-
+    
+    #Variable selection from CLI input flag --pool
+    print(${params.pool})
+    if("${params.pool}"=="pseudo"){
+      pool <- "pseudo"
+    } else if("${params.pool}"=="F"){
+      pool <- FALSE
+    } else if("${params.pool}"=="T"){
+      pool <- TRUE 
+    }
+    print(pool)
     derepF <- derepFastq("${filtFor}")
-    ddF <- dada(derepF, err=errF, multithread=${task.cpus}, pool=${params.pool})
+    
+    ddF <- dada(derepF, err=errF, multithread=${task.cpus}, pool=pool)
 
     derepR <- derepFastq("${filtRev}")
-    ddR <- dada(derepR, err=errR, multithread=${task.cpus},pool=${params.pool})
+    ddR <- dada(derepR, err=errR, multithread=${task.cpus},pool=pool)
 
+    #Variable selection from CLI input flag --trimOverhang
+    print(${params.trimOverhang})
+    if("${params.trimOverhang}"=="F"){
+      trimOverhang <- FALSE
+    } else if("${params.trimOverhang}"=="T"){
+      trimOverhang <- TRUE
+    print(trimOverhang)
+    
     merger <- mergePairs(ddF, derepF, ddR, derepR,
         minOverlap = ${params.minOverlap},
         maxMismatch = ${params.maxMismatch},
-        trimOverhang = ${params.trimOverhang}
+        trimOverhang = trimOverhang
         )
 
     # TODO: make this a single item list with ID as the name, this is lost
@@ -334,6 +375,7 @@ process SampleInferDerepAndMerge {
 // TODO: step may be obsolete if we run the above serially
 
 process mergeDadaRDS {
+    tag { "mergeDadaRDS" }
     publishDir "${params.outdir}/dada2-Inference", mode: "copy"
   
     input:
@@ -366,6 +408,7 @@ process mergeDadaRDS {
  */
 
 process SequenceTable {
+    tag { "SequenceTable" }
     publishDir "${params.outdir}/dada2-SeqTable", mode: "copy"
   
     input:
@@ -401,7 +444,9 @@ process SequenceTable {
 if (params.species) {
 
     speciesFile = file(params.species)
+  
     process ChimeraTaxonomySpecies {
+        tag { "ChimeraTaxonomySpecies" }
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy"
       
         input:
@@ -437,6 +482,7 @@ if (params.species) {
 } else {
 
     process ChimeraTaxonomy {
+        tag { "ChimeraTaxonomy" }
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy"
       
         input:
@@ -477,6 +523,7 @@ if (params.species) {
 // TODO: break into more steps?  phangorn takes a long time...
 
 process AlignAndGenerateTree {
+    tag { "AlignAndGenerateTree" }
     publishDir "${params.outdir}/dada2-Alignment", mode: "copy"
   
     input:
@@ -519,6 +566,7 @@ process AlignAndGenerateTree {
 }
 
 process BiomFile {
+    tag { "BiomFile" }
     publishDir "${params.outdir}/dada2-BIOM", mode: "copy"
   
     input:
@@ -549,6 +597,7 @@ process BiomFile {
 // Broken: needs a left-join on the initial table
 
 process ReadTracking {
+    tag { "ReadTracking" }
     publishDir "${params.outdir}/dada2-ReadTracking", mode: "copy"
   
     input:
@@ -593,20 +642,61 @@ process ReadTracking {
 /*
  * Completion e-mail notification
  */
-
 workflow.onComplete {
+  
+    def subject = "[uct-cbio/16S-rDNA-dada2-pipeline] Successful: $workflow.runName"
+    if(!workflow.success){
+      subject = "[uct-cbio/16S-rDNA-dada2-pipeline] FAILED: $workflow.runName"
+    }
+    def email_fields = [:]
+    email_fields['version'] = params.version
+    email_fields['runName'] = custom_runName ?: workflow.runName
+    email_fields['success'] = workflow.success
+    email_fields['dateComplete'] = workflow.complete
+    email_fields['duration'] = workflow.duration
+    email_fields['exitStatus'] = workflow.exitStatus
+    email_fields['errorMessage'] = (workflow.errorMessage ?: 'None')
+    email_fields['errorReport'] = (workflow.errorReport ?: 'None')
+    email_fields['commandLine'] = workflow.commandLine
+    email_fields['projectDir'] = workflow.projectDir
+    email_fields['summary'] = summary
+    email_fields['summary']['Date Started'] = workflow.start
+    email_fields['summary']['Date Completed'] = workflow.complete
+    email_fields['summary']['Pipeline script file path'] = workflow.scriptFile
+    email_fields['summary']['Pipeline script hash ID'] = workflow.scriptId
+    if(workflow.repository) email_fields['summary']['Pipeline repository Git URL'] = workflow.repository
+    if(workflow.commitId) email_fields['summary']['Pipeline repository Git Commit'] = workflow.commitId
+    if(workflow.revision) email_fields['summary']['Pipeline Git branch/tag'] = workflow.revision
+    if(workflow.container) email_fields['summary']['Docker image'] = workflow.container
 
-    println ( workflow.success ? """
-        Pipeline execution summary
-        ---------------------------
-        Completed at: ${workflow.complete}
-        Duration    : ${workflow.duration}
-        Success     : ${workflow.success}
-        workDir     : ${workflow.workDir}
-        exit status : ${workflow.exitStatus}
-        """ : """
-        Failed: ${workflow.errorReport}
-        exit status : ${workflow.exitStatus}
-        """
-    )
+    // Render the TXT template
+    def engine = new groovy.text.GStringTemplateEngine()
+    def tf = new File("$baseDir/assets/email_template.txt")
+    def txt_template = engine.createTemplate(tf).make(email_fields)
+    def email_txt = txt_template.toString()
+
+    // Render the HTML template
+    def hf = new File("$baseDir/assets/email_template.html")
+    def html_template = engine.createTemplate(hf).make(email_fields)
+    def email_html = html_template.toString()
+
+    // Render the sendmail template
+    def smail_fields = [ email: params.email, subject: subject, email_txt: email_txt, email_html: email_html, baseDir: "$baseDir" ]
+    def sf = new File("$baseDir/assets/sendmail_template.txt")
+    def sendmail_template = engine.createTemplate(sf).make(smail_fields)
+    def sendmail_html = sendmail_template.toString()
+
+    // Send the HTML e-mail
+    if (params.email) {
+        try {
+          if( params.plaintext_email ){ throw GroovyException('Send plaintext e-mail, not HTML') }
+          // Try to send HTML e-mail using sendmail
+          [ 'sendmail', '-t' ].execute() << sendmail_html
+          log.info "[uct-cbio/16S-rDNA-dada2-pipeline] Sent summary e-mail to $params.email (sendmail)"
+        } catch (all) {
+          // Catch failures and try with plaintext
+          [ 'mail', '-s', subject, params.email ].execute() << email_txt
+          log.info "[uct-cbio/16S-rDNA-dada2-pipeline] Sent summary e-mail to $params.email (mail)"
+        }
+    }
 }
