@@ -334,7 +334,7 @@ process SampleInferDerepAndMerge {
     cat("Processing:", "${pairId}", "\\n")
     
     #Variable selection from CLI input flag --pool
-    print(${params.pool})
+   
     if("${params.pool}"=="pseudo"){
       pool <- "pseudo"
     } else if("${params.pool}"=="F"){
@@ -351,7 +351,6 @@ process SampleInferDerepAndMerge {
     ddR <- dada(derepR, err=errR, multithread=${task.cpus},pool=pool)
 
     #Variable selection from CLI input flag --trimOverhang
-    print(${params.trimOverhang})
     if("${params.trimOverhang}"=="F"){
       trimOverhang <- FALSE
     } else if("${params.trimOverhang}"=="T"){
