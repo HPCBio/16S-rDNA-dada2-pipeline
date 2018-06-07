@@ -355,6 +355,7 @@ process SampleInferDerepAndMerge {
       trimOverhang <- FALSE
     } else if("${params.trimOverhang}"=="T"){
       trimOverhang <- TRUE
+    }  
     print(trimOverhang)
     
     merger <- mergePairs(ddF, derepF, ddR, derepR,
