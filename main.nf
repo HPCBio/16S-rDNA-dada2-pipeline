@@ -175,7 +175,7 @@ process plotQual {
 
 process filterAndTrim {
     tag { "filterAndTrim" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy"
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: false
   
     input:
     set pairId, file(reads) from dada2ReadPairs
@@ -211,7 +211,7 @@ process filterAndTrim {
 
 process mergeTrimmedTable {
     tag { "mergTrimmedTable" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy"
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: false
   
     input:
     file trimData from trimTracking.collect()
@@ -241,7 +241,7 @@ process mergeTrimmedTable {
 
 process LearnErrorsFor {
     tag { "LearnErrorsFor" }
-    publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy"
+    publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy", overwrite: false
   
     input:
     file fReads from forReads.collect()
@@ -271,7 +271,7 @@ process LearnErrorsFor {
 
 process LearnErrorsRev {
     tag { "LearnErrorsRev" }
-    publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy"
+    publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy", overwrite: false
   
     input:
     file rReads from revReads.collect()
@@ -311,7 +311,7 @@ process LearnErrorsRev {
 
 process SampleInferDerepAndMerge {
     tag { "SampleInferDerepAndMerge" }
-    publishDir "${params.outdir}/dada2-Derep", mode: "copy"
+    publishDir "${params.outdir}/dada2-Derep", mode: "copy", overwrite: false
   
     input:
     set val(pairId), file(filtFor), file(filtRev) from filteredReads
@@ -376,7 +376,7 @@ process SampleInferDerepAndMerge {
 
 process mergeDadaRDS {
     tag { "mergeDadaRDS" }
-    publishDir "${params.outdir}/dada2-Inference", mode: "copy"
+    publishDir "${params.outdir}/dada2-Inference", mode: "copy", overwrite: false
   
     input:
     file ddFs from dadaFor.collect()
@@ -409,7 +409,7 @@ process mergeDadaRDS {
 
 process SequenceTable {
     tag { "SequenceTable" }
-    publishDir "${params.outdir}/dada2-SeqTable", mode: "copy"
+    publishDir "${params.outdir}/dada2-SeqTable", mode: "copy", overwrite: false
   
     input:
     file mr from mergedReads.collect()
@@ -447,7 +447,7 @@ if (params.species) {
   
     process ChimeraTaxonomySpecies {
         tag { "ChimeraTaxonomySpecies" }
-        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy"
+        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: false
       
         input:
         file st from seqTable
@@ -483,7 +483,7 @@ if (params.species) {
 
     process ChimeraTaxonomy {
         tag { "ChimeraTaxonomy" }
-        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy"
+        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: false
       
         input:
         file st from seqTable
@@ -524,7 +524,7 @@ if (params.species) {
 
 process AlignAndGenerateTree {
     tag { "AlignAndGenerateTree" }
-    publishDir "${params.outdir}/dada2-Alignment", mode: "copy"
+    publishDir "${params.outdir}/dada2-Alignment", mode: "copy", overwrite: false
   
     input:
     file sTable from seqTableFinalTree
@@ -567,7 +567,7 @@ process AlignAndGenerateTree {
 
 process BiomFile {
     tag { "BiomFile" }
-    publishDir "${params.outdir}/dada2-BIOM", mode: "copy"
+    publishDir "${params.outdir}/dada2-BIOM", mode: "copy", overwrite: false
   
     input:
     file sTable from seqTableFinal
@@ -598,7 +598,7 @@ process BiomFile {
 
 process ReadTracking {
     tag { "ReadTracking" }
-    publishDir "${params.outdir}/dada2-ReadTracking", mode: "copy"
+    publishDir "${params.outdir}/dada2-ReadTracking", mode: "copy", overwrite: false
   
     input:
     file trimmedTable from trimmedReadTracking
