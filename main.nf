@@ -142,34 +142,36 @@ log.info "========================================="
  *
  */
 
+process runFastQC {
+    tag { "${params.projectName}.rFQC.${sample}" }
+    publishDir "${params.outdir}/dada2-FilterAndTrim/${sample}", mode: "copy", overwrite: false
 
-process plotQual {
-    tag { "plotQ" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy"
-  
     input:
-    file allReads from dada2ReadPairsToQual.flatMap({ it[1] }).collect()
+        set pairId, file(in_fastq) from dada2ReadPairsToQual
 
     output:
-    file "R1.pdf" into forQualPDF
-    file "R2.pdf" into revQualPDF
+        file("${pairId}_fastqc/*.zip") into fastqc_files
 
-    script:
     """
-    #!/usr/bin/env Rscript
-    library(dada2); packageVersion("dada2")
+    mkdir ${pairId}_fastqc
+    fastqc --outdir ${pairId}_fastqc \
+    ${in_fastq.get(0)} \
+    ${in_fastq.get(1)}
+    """
+}
 
-    # Forward Reads
-    pdf("R1.pdf")
-    fnFs <- list.files('.', pattern="_R1_*.fastq*", full.names = TRUE)
-    plotQualityProfile(fnFs, aggregate = TRUE)
-    dev.off()
+process runMultiQC{
+    tag { "${params.projectName}.rMQC" }
+    publishDir "${out_dir}/dada2-FilterAndTrim", mode: 'copy', overwrite: false
 
-    # Reverse Reads
-    pdf("R2.pdf")
-    fnRs <- list.files('.', pattern="_R2_*.fastq*", full.names = TRUE)
-    plotQualityProfile(fnRs, aggregate = TRUE)
-    dev.off()
+    input:
+        file('*') from fastqc_files.collect()
+
+    output:
+        file('multiqc_report.html')
+
+    """
+    multiqc .
     """
 }
 
@@ -206,6 +208,39 @@ process filterAndTrim {
                         verbose = TRUE,
                         multithread = ${task.cpus})
     write.csv(out, paste0("${pairId}", ".trimmed.txt"))
+    """
+}
+
+process runFastQC_postfilterandtrim {
+    tag { "${params.projectName}.rFQC_post_FT.${sample}" }
+    publishDir "${params.outdir}/FastQC_post_filter_trim/${sample}", mode: "copy", overwrite: false
+
+    input:
+    set val(pairId), file(filtFor), file(filtRev) from filteredReads
+    
+    output:
+        file("${pairID}_fastqc_postfiltertrim/*.zip") into fastqc_files_2
+
+    """
+    mkdir ${pairId}_fastqc_postfiltertrim
+    fastqc --outdir ${pairId}_fastqc_postfiltertrim \
+    ${filtFor} \
+    ${filtRev}
+    """
+}
+
+process runMultiQC_postfilterandtrim {
+    tag { "${params.projectName}.rMQC_post_FT" }
+    publishDir "${out_dir}/FastQC_post_filter_trim", mode: 'copy', overwrite: false
+
+    input:
+        file('*') from fastqc_files_2.collect()
+
+    output:
+        file('post_filter_trim_multiqc_report.html')
+
+    """
+    multiqc .
     """
 }
 
