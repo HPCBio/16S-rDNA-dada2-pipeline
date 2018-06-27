@@ -143,8 +143,8 @@ log.info "========================================="
  */
 
 process runFastQC {
-    tag { "rFQC.${sample}" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim/${sample}", mode: "copy", overwrite: false
+    tag { "rFQC.${pairId}" }
+    publishDir "${params.outdir}/dada2-FilterAndTrim/${pairId}", mode: "copy", overwrite: false
 
     input:
         set pairId, file(in_fastq) from dada2ReadPairsToQual
@@ -212,8 +212,8 @@ process filterAndTrim {
 }
 
 process runFastQC_postfilterandtrim {
-    tag { "rFQC_post_FT.${sample}" }
-    publishDir "${params.outdir}/FastQC_post_filter_trim/${sample}", mode: "copy", overwrite: false
+    tag { "rFQC_post_FT.${pairId}" }
+    publishDir "${params.outdir}/FastQC_post_filter_trim/${pairId}", mode: "copy", overwrite: false
 
     input:
     set val(pairId), file(filtFor), file(filtRev) from filteredReadsforQC
