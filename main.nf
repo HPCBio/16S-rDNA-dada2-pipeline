@@ -237,7 +237,7 @@ process runMultiQC_postfilterandtrim {
         file('*') from fastqc_files_2.collect()
 
     output:
-        file('post_filter_trim_multiqc_report.html')
+        file('multiqc_report.html')
 
     """
     multiqc .
