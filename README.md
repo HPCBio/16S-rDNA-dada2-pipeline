@@ -22,8 +22,8 @@ A dada2-based workflow using the Nextflow workflow manager.  The basic pipeline 
       -name                         Name for the pipeline run. If not specified, Nextflow will automatically generate a random                                     mnemonic.
     
     Trimming arguments (optional):
-      --truncFor                    Select minimum acceptable length for R1 (--truncFor). Reads shorter than this are                                             discarded (default 0, no trimming).
-      --truncRev                    Select minimum acceptable length for R2 (--truncRev). Reads shorter than this are                                             discarded (default 0, no trimming).
+      --truncFor                    Select minimum acceptable length for R1 (--truncFor). Reads will be truncated at truncFor                                     and reads shorter than this are discarded (default 0, no trimming).
+      --truncRev                    Select minimum acceptable length for R2 (--truncRev). Reads will be truncated at truncRev                                     and reads shorter than this are discarded (default 0, no trimming).
       --maxEEFor                    After truncation, R1 reads with higher than maxEE "expected errors" will be discarded. EE                                     = sum(10^(-Q/10)), default=2
       --maxEERev                    After truncation, R2 reads with higher than maxEE "expected errors" will be discarded. EE                                     = sum(10^(-Q/10)), default=2
       --truncQ                      Truncate reads at the first instance of a quality score less than or equal to truncQ;                                         default=2
