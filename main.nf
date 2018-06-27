@@ -143,7 +143,7 @@ log.info "========================================="
  */
 
 process runFastQC {
-    tag { "${params.projectName}.rFQC.${sample}" }
+    tag { "rFQC.${sample}" }
     publishDir "${params.outdir}/dada2-FilterAndTrim/${sample}", mode: "copy", overwrite: false
 
     input:
@@ -161,7 +161,7 @@ process runFastQC {
 }
 
 process runMultiQC{
-    tag { "${params.projectName}.rMQC" }
+    tag { "rMQC" }
     publishDir "${out_dir}/dada2-FilterAndTrim", mode: 'copy', overwrite: false
 
     input:
@@ -212,7 +212,7 @@ process filterAndTrim {
 }
 
 process runFastQC_postfilterandtrim {
-    tag { "${params.projectName}.rFQC_post_FT.${sample}" }
+    tag { "rFQC_post_FT.${sample}" }
     publishDir "${params.outdir}/FastQC_post_filter_trim/${sample}", mode: "copy", overwrite: false
 
     input:
@@ -230,7 +230,7 @@ process runFastQC_postfilterandtrim {
 }
 
 process runMultiQC_postfilterandtrim {
-    tag { "${params.projectName}.rMQC_post_FT" }
+    tag { "rMQC_post_FT" }
     publishDir "${out_dir}/FastQC_post_filter_trim", mode: 'copy', overwrite: false
 
     input:
