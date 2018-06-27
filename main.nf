@@ -219,7 +219,7 @@ process runFastQC_postfilterandtrim {
     set val(pairId), file(filtFor), file(filtRev) from filteredReadsforQC
     
     output:
-        file("${pairID}_fastqc_postfiltertrim/*.zip") into fastqc_files_2
+        file("${pairId}_fastqc_postfiltertrim/*.zip") into fastqc_files_2
 
     """
     mkdir ${pairId}_fastqc_postfiltertrim
