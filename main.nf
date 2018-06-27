@@ -183,7 +183,7 @@ process filterAndTrim {
     set pairId, file(reads) from dada2ReadPairs
 
     output:
-    set val(pairId), "*.R1.filtered.fastq.gz", "*.R2.filtered.fastq.gz" into filteredReads
+    set val(pairId), "*.R1.filtered.fastq.gz", "*.R2.filtered.fastq.gz" into filteredReadsforQC, filteredReads
     file "*.R1.filtered.fastq.gz" into forReads
     file "*.R2.filtered.fastq.gz" into revReads
     file "*.trimmed.txt" into trimTracking
@@ -216,7 +216,7 @@ process runFastQC_postfilterandtrim {
     publishDir "${params.outdir}/FastQC_post_filter_trim/${sample}", mode: "copy", overwrite: false
 
     input:
-    set val(pairId), file(filtFor), file(filtRev) from filteredReads
+    set val(pairId), file(filtFor), file(filtRev) from filteredReadsforQC
     
     output:
         file("${pairID}_fastqc_postfiltertrim/*.zip") into fastqc_files_2
