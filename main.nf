@@ -162,7 +162,7 @@ process runFastQC {
 
 process runMultiQC{
     tag { "rMQC" }
-    publishDir "${out_dir}/dada2-FilterAndTrim", mode: 'copy', overwrite: false
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: 'copy', overwrite: false
 
     input:
         file('*') from fastqc_files.collect()
@@ -231,7 +231,7 @@ process runFastQC_postfilterandtrim {
 
 process runMultiQC_postfilterandtrim {
     tag { "rMQC_post_FT" }
-    publishDir "${out_dir}/FastQC_post_filter_trim", mode: 'copy', overwrite: false
+    publishDir "${params.outdir}/FastQC_post_filter_trim", mode: 'copy', overwrite: false
 
     input:
         file('*') from fastqc_files_2.collect()
