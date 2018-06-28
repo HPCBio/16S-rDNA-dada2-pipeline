@@ -30,8 +30,8 @@ def helpMessage() {
       --email                       Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits
       -name                         Name for the pipeline run. If not specified, Nextflow will automatically generate a random mnemonic.
     Trimming arguments (optional):
-      --truncFor                    Select minimum acceptable length for R1 (--truncFor). Reads shorter than this are discarded (default 0, no trimming).
-      --truncRev                    Select minimum acceptable length for R2 (--truncRev). Reads shorter than this are discarded (default 0, no trimming).
+      --truncFor                    Select minimum acceptable length for R1 (--truncFor). Reads will be truncated at truncFor and reads shorter than this are discarded (default 0, no trimming).
+      --truncRev                    Select minimum acceptable length for R2 (--truncRev). Reads will be truncated at truncRev and reads shorter than this are discarded (default 0, no trimming).
       --maxEEFor                    After truncation, R1 reads with higher than maxEE "expected errors" will be discarded. EE = sum(10^(-Q/10)), default=2
       --maxEERev                    After truncation, R2 reads with higher than maxEE "expected errors" will be discarded. EE = sum(10^(-Q/10)), default=2
       --truncQ                      Truncate reads at the first instance of a quality score less than or equal to truncQ; default=2
@@ -142,34 +142,36 @@ log.info "========================================="
  *
  */
 
+process runFastQC {
+    tag { "rFQC.${pairId}" }
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: false
 
-process plotQual {
-    tag { "plotQ" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy"
-  
     input:
-    file allReads from dada2ReadPairsToQual.flatMap({ it[1] }).collect()
+        set pairId, file(in_fastq) from dada2ReadPairsToQual
 
     output:
-    file "R1.pdf" into forQualPDF
-    file "R2.pdf" into revQualPDF
+        file("${pairId}_fastqc/*.zip") into fastqc_files
 
-    script:
     """
-    #!/usr/bin/env Rscript
-    library(dada2); packageVersion("dada2")
+    mkdir ${pairId}_fastqc
+    fastqc --outdir ${pairId}_fastqc \
+    ${in_fastq.get(0)} \
+    ${in_fastq.get(1)}
+    """
+}
 
-    # Forward Reads
-    pdf("R1.pdf")
-    fnFs <- list.files('.', pattern="_R1_*.fastq*", full.names = TRUE)
-    plotQualityProfile(fnFs, aggregate = TRUE)
-    dev.off()
+process runMultiQC{
+    tag { "rMQC" }
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: 'copy', overwrite: false
 
-    # Reverse Reads
-    pdf("R2.pdf")
-    fnRs <- list.files('.', pattern="_R2_*.fastq*", full.names = TRUE)
-    plotQualityProfile(fnRs, aggregate = TRUE)
-    dev.off()
+    input:
+        file('*') from fastqc_files.collect()
+
+    output:
+        file('multiqc_report.html')
+
+    """
+    multiqc .
     """
 }
 
@@ -181,7 +183,7 @@ process filterAndTrim {
     set pairId, file(reads) from dada2ReadPairs
 
     output:
-    set val(pairId), "*.R1.filtered.fastq.gz", "*.R2.filtered.fastq.gz" into filteredReads
+    set val(pairId), "*.R1.filtered.fastq.gz", "*.R2.filtered.fastq.gz" into filteredReadsforQC, filteredReads
     file "*.R1.filtered.fastq.gz" into forReads
     file "*.R2.filtered.fastq.gz" into revReads
     file "*.trimmed.txt" into trimTracking
@@ -206,6 +208,39 @@ process filterAndTrim {
                         verbose = TRUE,
                         multithread = ${task.cpus})
     write.csv(out, paste0("${pairId}", ".trimmed.txt"))
+    """
+}
+
+process runFastQC_postfilterandtrim {
+    tag { "rFQC_post_FT.${pairId}" }
+    publishDir "${params.outdir}/FastQC_post_filter_trim", mode: "copy", overwrite: false
+
+    input:
+    set val(pairId), file(filtFor), file(filtRev) from filteredReadsforQC
+    
+    output:
+        file("${pairId}_fastqc_postfiltertrim/*.zip") into fastqc_files_2
+
+    """
+    mkdir ${pairId}_fastqc_postfiltertrim
+    fastqc --outdir ${pairId}_fastqc_postfiltertrim \
+    ${filtFor} \
+    ${filtRev}
+    """
+}
+
+process runMultiQC_postfilterandtrim {
+    tag { "rMQC_post_FT" }
+    publishDir "${params.outdir}/FastQC_post_filter_trim", mode: 'copy', overwrite: false
+
+    input:
+        file('*') from fastqc_files_2.collect()
+
+    output:
+        file('multiqc_report.html')
+
+    """
+    multiqc .
     """
 }
 
