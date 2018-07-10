@@ -18,7 +18,17 @@ curl -fsSL get.nextflow.io | bash
 # Add Nextflow binary to your PATH:
 mv nextflow ~/bin
 # OR system-wide installation:
-# sudo mv nextflow /usr/local/bin
+sudo mv nextflow /usr/local/bin
+
+#For Univeristy of Cape Town users working on HPC (hex):
+#From your home directory on hex install nextflow
+curl -fsSL get.nextflow.io | bash
+
+#Add the following to ~/.bashrc:
+export JAVA_HOME=/opt/exp_soft/java/jdk1.8.0_31/
+
+#Do not run nextflow from the headnode, it requires substantial memory to run java. Please therefore first start an interactive job as follows: 
+qsub -I -q UCTlong -l nodes=1:series600:ppn=1 -d `pwd`
 ```
 
 **You need NextFlow version >= 0.24 to run this pipeline.**
