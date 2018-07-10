@@ -21,7 +21,7 @@ mv nextflow ~/bin
 sudo mv nextflow /usr/local/bin
 ```
 
-###For Univeristy of Cape Town users working on HPC (hex):
+### For Univeristy of Cape Town users working on HPC (hex):
 ```
 #From your home directory on hex install nextflow
 curl -fsSL get.nextflow.io | bash
