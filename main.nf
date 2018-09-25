@@ -6,21 +6,21 @@ vim: syntax=groovy
                D A D A 2   P I P E L I N E
 ========================================================================================
  DADA2 NEXTFLOW PIPELINE FOR UCT CBIO
- 
+
 ----------------------------------------------------------------------------------------
 */
 
 def helpMessage() {
     log.info"""
     ===================================
-     uct-cbio/16S-rDNA-dada2-pipeline  ~  version ${params.version}
+     ${params.base}/16S-rDNA-dada2-pipeline  ~  version ${params.version}
     ===================================
     Usage:
     The typical command for running the pipeline is as follows:
-    nextflow run uct-cbio/16S-rDNA-dada2-pipeline --reads '*_R{1,2}.fastq.gz' --trimFor 24 --trimRev 25 --reference 'gg_13_8_train_set_97.fa.gz' -profile uct_hex
+    nextflow run ${params.base}/16S-rDNA-dada2-pipeline --reads '*_R{1,2}.fastq.gz' --trimFor 24 --trimRev 25 --reference 'gg_13_8_train_set_97.fa.gz' -profile uct_hex
     Mandatory arguments:
       --reads                       Path to input data (must be surrounded with quotes)
-      -profile                      Hardware config to use. local / uct_hex
+      -profile                      Hardware config to use. local / uct_hex / uiuc_biocluster
       --trimFor                     Set length of R1 (--trimFor) that needs to be trimmed (set 0 if no trimming is needed)
       --trimRev                     Set length of R2 (--trimRev) that needs to be trimmed (set 0 if no trimming is needed)
       --reference                   Path to taxonomic database to be used for annotation (e.g. gg_13_8_train_set_97.fa.gz)
@@ -44,7 +44,7 @@ def helpMessage() {
       --maxMismatch                 The maximum mismatches allowed in the overlap region; default=0.
       --trimOverhang                If "T" (true), "overhangs" in the alignment between R1 and R2 are trimmed off. "Overhangs" are when R2 extends past the start of R1, and vice-versa, as can happen
                                     when reads are longer than the amplicon and read into the other-direction primer region. Default="F" (false)
-      
+
       Taxonomic arguments (optional):
       --species                     Specify path to fasta file. See dada2 addSpecies() for more detail.
     """.stripIndent()
@@ -96,7 +96,7 @@ refFile = file(params.reference)
 
 // Header log info
 log.info "==================================="
-log.info " uct-cbio/16S-rDNA-dada2-pipeline  ~  version ${params.version}"
+log.info " ${params.base}/16S-rDNA-dada2-pipeline  ~  version ${params.version}"
 log.info "==================================="
 def summary = [:]
 summary['Run Name']     = custom_runName ?: workflow.runName
@@ -178,7 +178,7 @@ process runMultiQC{
 process filterAndTrim {
     tag { "filterAndTrim" }
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: false
-  
+
     input:
     set pairId, file(reads) from dada2ReadPairs
 
@@ -217,7 +217,7 @@ process runFastQC_postfilterandtrim {
 
     input:
     set val(pairId), file(filtFor), file(filtRev) from filteredReadsforQC
-    
+
     output:
         file("${pairId}_fastqc_postfiltertrim/*.zip") into fastqc_files_2
 
@@ -247,7 +247,7 @@ process runMultiQC_postfilterandtrim {
 process mergeTrimmedTable {
     tag { "mergTrimmedTable" }
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: false
-  
+
     input:
     file trimData from trimTracking.collect()
 
@@ -277,7 +277,7 @@ process mergeTrimmedTable {
 process LearnErrorsFor {
     tag { "LearnErrorsFor" }
     publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy", overwrite: false
-  
+
     input:
     file fReads from forReads.collect()
 
@@ -307,7 +307,7 @@ process LearnErrorsFor {
 process LearnErrorsRev {
     tag { "LearnErrorsRev" }
     publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy", overwrite: false
-  
+
     input:
     file rReads from revReads.collect()
 
@@ -347,7 +347,7 @@ process LearnErrorsRev {
 process SampleInferDerepAndMerge {
     tag { "SampleInferDerepAndMerge" }
     publishDir "${params.outdir}/dada2-Derep", mode: "copy", overwrite: false
-  
+
     input:
     set val(pairId), file(filtFor), file(filtRev) from filteredReads
     file errFor from errorsFor
@@ -367,19 +367,19 @@ process SampleInferDerepAndMerge {
     errF <- readRDS("${errFor}")
     errR <- readRDS("${errRev}")
     cat("Processing:", "${pairId}", "\\n")
-    
+
     #Variable selection from CLI input flag --pool
-   
+
     if("${params.pool}"=="pseudo"){
       pool <- "pseudo"
     } else if("${params.pool}"=="F"){
       pool <- FALSE
     } else if("${params.pool}"=="T"){
-      pool <- TRUE 
+      pool <- TRUE
     }
     print(pool)
     derepF <- derepFastq("${filtFor}")
-    
+
     ddF <- dada(derepF, err=errF, multithread=${task.cpus}, pool=pool)
 
     derepR <- derepFastq("${filtRev}")
@@ -390,9 +390,9 @@ process SampleInferDerepAndMerge {
       trimOverhang <- FALSE
     } else if("${params.trimOverhang}"=="T"){
       trimOverhang <- TRUE
-    }  
+    }
     print(trimOverhang)
-    
+
     merger <- mergePairs(ddF, derepF, ddR, derepR,
         minOverlap = ${params.minOverlap},
         maxMismatch = ${params.maxMismatch},
@@ -412,7 +412,7 @@ process SampleInferDerepAndMerge {
 process mergeDadaRDS {
     tag { "mergeDadaRDS" }
     publishDir "${params.outdir}/dada2-Inference", mode: "copy", overwrite: false
-  
+
     input:
     file ddFs from dadaFor.collect()
     file ddRs from dadaRev.collect()
@@ -445,7 +445,7 @@ process mergeDadaRDS {
 process SequenceTable {
     tag { "SequenceTable" }
     publishDir "${params.outdir}/dada2-SeqTable", mode: "copy", overwrite: false
-  
+
     input:
     file mr from mergedReads.collect()
 
@@ -479,11 +479,11 @@ process SequenceTable {
 if (params.species) {
 
     speciesFile = file(params.species)
-  
+
     process ChimeraTaxonomySpecies {
         tag { "ChimeraTaxonomySpecies" }
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: false
-      
+
         input:
         file st from seqTable
         file ref from refFile
@@ -519,7 +519,7 @@ if (params.species) {
     process ChimeraTaxonomy {
         tag { "ChimeraTaxonomy" }
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: false
-      
+
         input:
         file st from seqTable
         file ref from refFile
@@ -560,7 +560,7 @@ if (params.species) {
 process AlignAndGenerateTree {
     tag { "AlignAndGenerateTree" }
     publishDir "${params.outdir}/dada2-Alignment", mode: "copy", overwrite: false
-  
+
     input:
     file sTable from seqTableFinalTree
 
@@ -603,7 +603,7 @@ process AlignAndGenerateTree {
 process BiomFile {
     tag { "BiomFile" }
     publishDir "${params.outdir}/dada2-BIOM", mode: "copy", overwrite: false
-  
+
     input:
     file sTable from seqTableFinal
     file tTable from taxFinal
@@ -634,7 +634,7 @@ process BiomFile {
 process ReadTracking {
     tag { "ReadTracking" }
     publishDir "${params.outdir}/dada2-ReadTracking", mode: "copy", overwrite: false
-  
+
     input:
     file trimmedTable from trimmedReadTracking
     file sTable from seqTableFinalTracking
@@ -678,10 +678,10 @@ process ReadTracking {
  * Completion e-mail notification
  */
 workflow.onComplete {
-  
-    def subject = "[uct-cbio/16S-rDNA-dada2-pipeline] Successful: $workflow.runName"
+
+    def subject = "[${params.base}/16S-rDNA-dada2-pipeline] Successful: $workflow.runName"
     if(!workflow.success){
-      subject = "[uct-cbio/16S-rDNA-dada2-pipeline] FAILED: $workflow.runName"
+      subject = "[${params.base}/16S-rDNA-dada2-pipeline] FAILED: $workflow.runName"
     }
     def email_fields = [:]
     email_fields['version'] = params.version
@@ -727,11 +727,11 @@ workflow.onComplete {
           if( params.plaintext_email ){ throw GroovyException('Send plaintext e-mail, not HTML') }
           // Try to send HTML e-mail using sendmail
           [ 'sendmail', '-t' ].execute() << sendmail_html
-          log.info "[uct-cbio/16S-rDNA-dada2-pipeline] Sent summary e-mail to $params.email (sendmail)"
+          log.info "[${params.base}/16S-rDNA-dada2-pipeline] Sent summary e-mail to $params.email (sendmail)"
         } catch (all) {
           // Catch failures and try with plaintext
           [ 'mail', '-s', subject, params.email ].execute() << email_txt
-          log.info "[uct-cbio/16S-rDNA-dada2-pipeline] Sent summary e-mail to $params.email (mail)"
+          log.info "[${params.base}/16S-rDNA-dada2-pipeline] Sent summary e-mail to $params.email (mail)"
         }
     }
 }
