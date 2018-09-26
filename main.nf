@@ -54,6 +54,16 @@ def helpMessage() {
  * SET UP CONFIGURATION VARIABLES
  */
 
+// Configurable variables
+params.name = false
+params.project = false
+params.email = false
+params.plaintext_email = false
+params.precheck = false
+params.runtree == true
+
+// Show help message
+params.help = false
 if (params.help){
     helpMessage()
     exit 0
@@ -172,6 +182,7 @@ process runMultiQC{
 process filterAndTrim {
     tag { "filterAndTrim" }
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: false
+    errorStrategy 'ignore'
 
     input:
     set pairId, file(reads) from dada2ReadPairs
@@ -607,7 +618,7 @@ process AlignAndGenerateTree {
 
     when:
     params.precheck == false
-
+    params.runtree == true
 
     script:
     """
