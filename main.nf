@@ -54,15 +54,6 @@ def helpMessage() {
  * SET UP CONFIGURATION VARIABLES
  */
 
-// Configurable variables
-params.name = false
-params.project = false
-params.email = false
-params.plaintext_email = false
-params.precheck = false
-
-// Show help emssage
-params.help = false
 if (params.help){
     helpMessage()
     exit 0
@@ -190,7 +181,7 @@ process filterAndTrim {
     file "*.R1.filtered.fastq.gz" into forReads
     file "*.R2.filtered.fastq.gz" into revReads
     file "*.trimmed.txt" into trimTracking
-    
+
     when:
     params.precheck == false
 
@@ -567,7 +558,7 @@ if (params.species) {
         output:
         file "seqtab_final.RDS" into seqTableFinal,seqTableFinalTree,seqTableFinalTracking
         file "tax_final.RDS" into taxFinal
-    
+
         when:
         params.precheck == false
 
