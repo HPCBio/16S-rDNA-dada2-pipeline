@@ -59,6 +59,7 @@ params.name = false
 params.project = false
 params.email = false
 params.plaintext_email = false
+params.precheck = false
 
 // Show help emssage
 params.help = false
@@ -152,6 +153,7 @@ process runFastQC {
     output:
         file("${pairId}_fastqc/*.zip") into fastqc_files
 
+
     """
     mkdir ${pairId}_fastqc
     fastqc --outdir ${pairId}_fastqc \
@@ -170,6 +172,7 @@ process runMultiQC{
     output:
         file('multiqc_report.html')
 
+
     """
     multiqc .
     """
@@ -187,6 +190,9 @@ process filterAndTrim {
     file "*.R1.filtered.fastq.gz" into forReads
     file "*.R2.filtered.fastq.gz" into revReads
     file "*.trimmed.txt" into trimTracking
+    
+    when:
+    params.precheck == false
 
     script:
     """
@@ -221,6 +227,9 @@ process runFastQC_postfilterandtrim {
     output:
         file("${pairId}_fastqc_postfiltertrim/*.zip") into fastqc_files_2
 
+    when:
+    params.precheck == false
+
     """
     mkdir ${pairId}_fastqc_postfiltertrim
     fastqc --outdir ${pairId}_fastqc_postfiltertrim \
@@ -239,6 +248,10 @@ process runMultiQC_postfilterandtrim {
     output:
         file('multiqc_report.html')
 
+    when:
+    params.precheck == false
+
+
     """
     multiqc .
     """
@@ -253,6 +266,10 @@ process mergeTrimmedTable {
 
     output:
     file "all.trimmed.csv" into trimmedReadTracking
+
+    when:
+    params.precheck == false
+
 
     script:
     """
@@ -284,6 +301,10 @@ process LearnErrorsFor {
     output:
     file "errorsF.RDS" into errorsFor
 
+    when:
+    params.precheck == false
+
+
     script:
     """
     #!/usr/bin/env Rscript
@@ -313,6 +334,10 @@ process LearnErrorsRev {
 
     output:
     file "errorsR.RDS" into errorsRev
+
+    when:
+    params.precheck == false
+
 
     script:
     """
@@ -357,6 +382,10 @@ process SampleInferDerepAndMerge {
     file "*.merged.RDS" into mergedReads
     file "*.ddF.RDS" into dadaFor
     file "*.ddR.RDS" into dadaRev
+
+    when:
+    params.precheck == false
+
 
     script:
     """
@@ -421,6 +450,10 @@ process mergeDadaRDS {
     file "all.ddF.RDS" into dadaForReadTracking
     file "all.ddR.RDS" into dadaRevReadTracking
 
+    when:
+    params.precheck == false
+
+
     script:
     '''
     #!/usr/bin/env Rscript
@@ -452,6 +485,9 @@ process SequenceTable {
     output:
     file "seqtab.RDS" into seqTable
     file "mergers.RDS" into mergerTracking
+
+    when:
+    params.precheck == false
 
     script:
     '''
@@ -493,6 +529,10 @@ if (params.species) {
         file "seqtab_final.RDS" into seqTableFinal,seqTableFinalTree,seqTableFinalTracking
         file "tax_final.RDS" into taxFinal
 
+        when:
+        params.precheck == false
+
+
         script:
         """
         #!/usr/bin/env Rscript
@@ -527,6 +567,10 @@ if (params.species) {
         output:
         file "seqtab_final.RDS" into seqTableFinal,seqTableFinalTree,seqTableFinalTracking
         file "tax_final.RDS" into taxFinal
+    
+        when:
+        params.precheck == false
+
 
         script:
         """
@@ -570,6 +614,10 @@ process AlignAndGenerateTree {
     file "tree.newick" into treeFile
     file "tree.GTR.newick" into treeGTRFile
 
+    when:
+    params.precheck == false
+
+
     script:
     """
     #!/usr/bin/env Rscript
@@ -611,6 +659,10 @@ process BiomFile {
     output:
     file "dada2.biom" into biomFile
 
+    when:
+    params.precheck == false
+
+
     script:
     """
     #!/usr/bin/env Rscript
@@ -644,6 +696,9 @@ process ReadTracking {
 
     output:
     file "all.readtracking.txt"
+
+    when:
+    params.precheck == false
 
     script:
     """
