@@ -60,7 +60,7 @@ params.project = false
 params.email = false
 params.plaintext_email = false
 params.precheck = false
-params.runtree == true
+params.runtree == false
 
 // Show help message
 params.help = false
@@ -154,7 +154,6 @@ process runFastQC {
     output:
         file("${pairId}_fastqc/*.zip") into fastqc_files
 
-
     """
     mkdir ${pairId}_fastqc
     fastqc --outdir ${pairId}_fastqc \
@@ -172,7 +171,6 @@ process runMultiQC{
 
     output:
         file('multiqc_report.html')
-
 
     """
     multiqc .
@@ -597,57 +595,116 @@ if (params.species) {
 
 /*
  *
- * Step 9: Construct phylogenetic tree
+ * Step 9: Align and construct phylogenetic tree
  *
  */
 
-// TODO: break into more steps?  phangorn takes a long time...
 
-process AlignAndGenerateTree {
-    tag { "AlignAndGenerateTree" }
-    publishDir "${params.outdir}/dada2-Alignment", mode: "copy", overwrite: false
+/*
+ *
+ * Step 9a: Alignment
+ *
+ */
 
-    input:
-    file sTable from seqTableFinalTree
+ /*
+  *
+  * Step 9b: Construct phylogenetic tree
+  *
+  */
 
-    output:
-    file "aligned_seqs.fasta" into alnFile
-    file "phangorn.tree.RDS" into treeRDS
-    file "tree.newick" into treeFile
-    file "tree.GTR.newick" into treeGTRFile
+// NOTE: 'when' directive doesn't work if channels have the same name in
+// two processes
 
-    when:
-    params.precheck == false
-    params.runtree == true
+if (!params.precheck && params.runtree) {
 
-    script:
-    """
-    #!/usr/bin/env Rscript
-    library(dada2)
-    library(DECIPHER)
-    library(phangorn)
+    process AlignReads {
+        tag { "AlignReads" }
+        publishDir "${params.outdir}/dada2-Alignment", mode: "copy", overwrite: false
 
-    seqs <- getSequences(readRDS("${sTable}"))
-    names(seqs) <- seqs # This propagates to the tip labels of the tree
-    alignment <- AlignSeqs(DNAStringSet(seqs),
-                           anchor=NA,
-                           processors = ${task.cpus})
-    writeXStringSet(alignment, "aligned_seqs.fasta")
+        input:
+        file sTable from seqTableFinalTree
 
-    # TODO: optimize this, or maybe split into a second step?
-    phang.align <- phyDat(as(alignment, "matrix"), type="DNA")
-    dm <- dist.ml(phang.align)
-    treeNJ <- NJ(dm) # Note, tip order != sequence order
-    fit = pml(treeNJ, data=phang.align)
-    write.tree(fit\$tree, file = "tree.newick")
+        // TODO: we are only keeping the FASTA here, as we may want to switch to an
+        // alternative tree-building tool (like Fasttree or RAXML)
+        output:
+        file "aligned_seqs.fasta" into alnFile
 
-    ## negative edges length changed to 0!
-    fitGTR <- update(fit, k=4, inv=0.2)
-    fitGTR <- optim.pml(fitGTR, model="GTR", optInv=TRUE, optGamma=TRUE,
-                          rearrangement = "stochastic", control = pml.control(trace = 0))
-    saveRDS(fitGTR, "phangorn.tree.RDS")
-    write.tree(fitGTR\$tree, file = "tree.GTR.newick")
-    """
+        script:
+        """
+        #!/usr/bin/env Rscript
+        library(dada2)
+        library(DECIPHER)
+
+        seqs <- getSequences(readRDS("${sTable}"))
+        names(seqs) <- seqs # This propagates to the tip labels of the tree
+        alignment <- AlignSeqs(DNAStringSet(seqs),
+                               anchor=NA,
+                               processors = ${task.cpus})
+        writeXStringSet(alignment, "aligned_seqs.fasta")
+        """
+    }
+
+    if (params.runtree == 'phangorn') {
+
+        process GenerateTreePhangorn {
+            tag { "GenerateTreePhangorn" }
+            publishDir "${params.outdir}/dada2-Phangorn", mode: "copy", overwrite: false
+
+            input:
+            file aln from alnFile
+
+            output:
+            file "phangorn.tree.RDS" into treeRDS
+            file "tree.newick" into treeFile
+            file "tree.GTR.newick" into treeGTRFile
+
+            script:
+            """
+            #!/usr/bin/env Rscript
+            library(phangorn)
+
+            phang.align <- read.phyDat("aligned_seqs.fasta",
+                                        format = "fasta",
+                                        type = "DNA")
+
+            dm <- dist.ml(phang.align)
+            treeNJ <- NJ(dm) # Note, tip order != sequence order
+            fit = pml(treeNJ, data=phang.align)
+            write.tree(fit\$tree, file = "tree.newick")
+
+            ## negative edges length changed to 0!
+            fitGTR <- update(fit, k=4, inv=0.2)
+            fitGTR <- optim.pml(fitGTR, model="GTR", optInv=TRUE, optGamma=TRUE,
+                                  rearrangement = "stochastic", control = pml.control(trace = 0))
+            saveRDS(fitGTR, "phangorn.tree.RDS")
+            write.tree(fitGTR\$tree, file = "tree.GTR.newick")
+            """
+        }
+    } else if (params.runtree == 'fasttree') {
+
+        process GenerateTreeFasttree {
+            tag { "GenerateTreeFasttree" }
+            publishDir "${params.outdir}/dada2-Fasttree", mode: "copy", overwrite: false
+
+            input:
+            file aln from alnFile
+
+            output:
+            file "fasttree.tree" into treeGTRFile
+            // need to deadend the other channels, they're hanging here
+
+            script:
+            """
+            OMP_NUM_THREADS=${task.cpus} FastTree -nt \\
+                -gtr -gamma -spr 4 -mlacc 2 -slownni \\
+                -out fasttree.tree \\
+                aligned_seqs.fasta
+            """
+        }
+
+    } else {
+        // dead-end channels generated above
+    }
 }
 
 process BiomFile {
