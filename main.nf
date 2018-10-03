@@ -24,6 +24,8 @@ def helpMessage() {
       --trimFor                     Set length of R1 (--trimFor) that needs to be trimmed (set 0 if no trimming is needed)
       --trimRev                     Set length of R2 (--trimRev) that needs to be trimmed (set 0 if no trimming is needed)
       --reference                   Path to taxonomic database to be used for annotation (e.g. gg_13_8_train_set_97.fa.gz)
+      --fwdprimer                   Sequence of forward primer (e.g. "ATGCTTAGGCA")
+      --revprimer                   Sequence of reverse primer (e.g. "ATGCTTAGGCA")
     Other arguments:
       --pool                        Should sample pooling be used to aid identification of low-abundance ASVs? Options are pseudo pooling: "pseudo", true: "T", false: "F"
       --outdir                      The output directory where the results will be saved
@@ -60,7 +62,8 @@ params.project = false
 params.email = false
 params.plaintext_email = false
 params.precheck = false
-params.runtree == false
+params.runtree = false
+params.amplicon = "V4"
 
 // Show help message
 params.help = false
@@ -70,16 +73,24 @@ if (params.help){
 }
 
 //Validate inputs
-if ( params.trimFor == false ) {
+if ( params.trimFor == false && params.amplicon == '16S') {
     exit 1, "Must set length of R1 (--trimFor) that needs to be trimmed (set 0 if no trimming is needed)"
 }
 
-if ( params.trimRev == false ) {
+if ( params.trimRev == false && params.amplicon == '16S') {
     exit 1, "Must set length of R2 (--trimRev) that needs to be trimmed (set 0 if no trimming is needed)"
 }
 
 if ( params.reference == false ) {
     exit 1, "Must set reference database using --reference"
+}
+
+if (params.fwdprimer == false && params.amplicon == 'ITS'){
+    exit 1, "Must set forward primer using --fwdprimer"
+}
+
+if (params.revprimer == false && params.amplicon == 'ITS'){
+    exit 1, "Must set reverse primer using --revprimer"
 }
 
 // Has the run name been specified by the user?
@@ -103,6 +114,9 @@ log.info "==================================="
 def summary = [:]
 summary['Run Name']     = custom_runName ?: workflow.runName
 summary['Reads']        = params.reads
+summary['Forward primer'] = params.fwdprimer
+summary['Reverse primer'] = params.revprimer
+summary['Amplicon type'] = params.amplicon
 summary['trimFor'] = params.trimFor
 summary['trimRev'] = params.trimRev
 summary['truncFor'] = params.truncFor
@@ -177,6 +191,71 @@ process runMultiQC{
     """
 }
 
+/* ITS amplicon filtering */
+if(params.amplicon == 'ITS'){
+process itsFilterAndTrim {
+    tag { "itsFilterAndTrim" }
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: false
+    errorStrategy 'ignore'
+
+    input:
+    set pairId, file(reads) from dada2ReadPairs
+
+    output:
+    set val(pairId), "*.R1.filtered.fastq.gz", "*.R2.filtered.fastq.gz" into filteredReadsforQC, filteredReads
+    file "*.R1.filtered.fastq.gz" into forReads
+    file "*.R2.filtered.fastq.gz" into revReads
+    file "*.trimmed.txt" into trimTracking
+
+    when:
+    params.precheck == false
+
+    script:
+    """
+    #!/usr/bin/env Rscript
+    library(dada2); packageVersion("dada2")
+    library(ShortRead); packageVersion("ShortRead")
+    library(Biostrings); packageVersion("Biostrings")
+
+    #Filter out reads with N's
+    filterAndTrim(fwd = "${reads[0]}",
+                        filt = paste0("${pairId}", ".R1.noN.fastq.gz"),
+                        rev = "${reads[1]}",
+                        filt.rev = paste0("${pairId}", ".R2.noN.fastq.gz"),
+                        maxN = 0,
+                        multithread = ${task.cpus})
+    FWD.RC <- dada2:::rc("${params.fwdprimer}")
+    REV.RC <- dada2:::rc("${params.revprimer}")
+    # Trim FWD and the reverse-complement of REV off of R1 (forward reads)
+    R1.flags <- paste("-g", "${params.fwdprimer}", "-a", REV.RC) 
+    # Trim REV and the reverse-complement of FWD off of R2 (reverse reads)
+    R2.flags <- paste("-G", "${params.revprimer}", "-A", FWD.RC) 
+    system2('cutadapt', args = c(R1.flags, R2.flags, "-n", 2, 
+                        "-o", paste0("${pairId}",".R1.cutadapt.fastq.gz"),
+                        "-p", paste0("${pairId}",".R2.cutadapt.fastq.gz"), 
+                        paste0("${pairId}",".R1.noN.fastq.gz"), 
+                        paste0("${pairId}",".R2.noN.fastq.gz")))
+    
+    out <- filterAndTrim(fwd = paste0("${pairId}",".R1.cutadapt.fastq.gz"),
+                        filt = paste0("${pairId}", ".R1.filtered.fastq.gz"),
+                        rev = paste0("${pairId}",".R2.cutadapt.fastq.gz"),
+                        filt.rev = paste0("${pairId}", ".R2.filtered.fastq.gz"),
+                        maxEE = c(${params.maxEEFor},${params.maxEERev}),
+                        truncQ = ${params.truncQ},
+                        maxN = ${params.maxN},
+                        rm.phix = ${params.rmPhiX},
+                        maxLen = ${params.maxLen},
+                        minLen = ${params.minLen},
+                        compress = TRUE,
+                        verbose = TRUE,
+                        multithread = ${task.cpus})
+    write.csv(out, paste0("${pairId}", ".trimmed.txt"))
+    """
+}
+}
+
+/* 16S amplicon filtering */
+else if (params.amplicon == '16S'){
 process filterAndTrim {
     tag { "filterAndTrim" }
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: false
@@ -198,6 +277,7 @@ process filterAndTrim {
     """
     #!/usr/bin/env Rscript
     library(dada2); packageVersion("dada2")
+
     out <- filterAndTrim(fwd = "${reads[0]}",
                         filt = paste0("${pairId}", ".R1.filtered.fastq.gz"),
                         rev = "${reads[1]}",
@@ -215,6 +295,7 @@ process filterAndTrim {
                         multithread = ${task.cpus})
     write.csv(out, paste0("${pairId}", ".trimmed.txt"))
     """
+}
 }
 
 process runFastQC_postfilterandtrim {
@@ -615,7 +696,7 @@ if (params.species) {
 // NOTE: 'when' directive doesn't work if channels have the same name in
 // two processes
 
-if (!params.precheck && params.runtree) {
+if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
 
     process AlignReads {
         tag { "AlignReads" }
