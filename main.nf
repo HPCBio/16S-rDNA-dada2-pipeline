@@ -21,12 +21,13 @@ def helpMessage() {
     Mandatory arguments:
       --reads                       Path to input data (must be surrounded with quotes)
       -profile                      Hardware config to use. local / uct_hex / uiuc_biocluster
-      --trimFor                     Set length of R1 (--trimFor) that needs to be trimmed (set 0 if no trimming is needed)
-      --trimRev                     Set length of R2 (--trimRev) that needs to be trimmed (set 0 if no trimming is needed)
+      --trimFor                     Set length of R1 (--trimFor) that needs to be trimmed (set 0 if no trimming is needed)(For 16S mode only)
+      --trimRev                     Set length of R2 (--trimRev) that needs to be trimmed (set 0 if no trimming is needed)(For 16S mode only)
       --reference                   Path to taxonomic database to be used for annotation (e.g. gg_13_8_train_set_97.fa.gz)
-      --fwdprimer                   Sequence of forward primer (e.g. "ATGCTTAGGCA")
-      --revprimer                   Sequence of reverse primer (e.g. "ATGCTTAGGCA")
-    Other arguments:
+      --fwdprimer                   Sequence of forward primer (for ITS mode only)
+      --revprimer                   Sequence of reverse primer (for ITS mode only)
+      --amplicon                    Type of amplicon that is being analyzed (16S or ITS) 
+   Other arguments:
       --pool                        Should sample pooling be used to aid identification of low-abundance ASVs? Options are pseudo pooling: "pseudo", true: "T", false: "F"
       --outdir                      The output directory where the results will be saved
       --email                       Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits
