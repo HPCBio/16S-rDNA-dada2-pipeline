@@ -40,7 +40,7 @@ def helpMessage() {
       --truncQ                      Truncate reads at the first instance of a quality score less than or equal to truncQ; default=2
       --maxN                        After truncation, sequences with more than maxN Ns will be discarded. Note that dada() does not allow Ns; default=0
       --maxLen                      Remove reads with length greater than maxLen. maxLen is enforced before trimming and truncation; default=Inf (no maximum)
-      --minLen                      Remove reads with length less than minLen. minLen is enforced after trimming and truncation; default=20
+      --minLen                      Remove reads with length less than minLen. minLen is enforced after trimming and truncation; default=50
 
       Merging arguments (optional):
       --minOverlap                  The minimum length of the overlap required for merging R1 and R2; default=20 (dada2 package default=12)
@@ -219,7 +219,7 @@ process itsFilterAndTrim {
     library(Biostrings); packageVersion("Biostrings")
 
     #Filter out reads with N's
-    filterAndTrim(fwd = "${reads[0]}",
+    out1 <- filterAndTrim(fwd = "${reads[0]}",
                         filt = paste0("${pairId}", ".R1.noN.fastq.gz"),
                         rev = "${reads[1]}",
                         filt.rev = paste0("${pairId}", ".R2.noN.fastq.gz"),
@@ -237,7 +237,7 @@ process itsFilterAndTrim {
                         paste0("${pairId}",".R1.noN.fastq.gz"), 
                         paste0("${pairId}",".R2.noN.fastq.gz")))
     
-    out <- filterAndTrim(fwd = paste0("${pairId}",".R1.cutadapt.fastq.gz"),
+    out2 <- filterAndTrim(fwd = paste0("${pairId}",".R1.cutadapt.fastq.gz"),
                         filt = paste0("${pairId}", ".R1.filtered.fastq.gz"),
                         rev = paste0("${pairId}",".R2.cutadapt.fastq.gz"),
                         filt.rev = paste0("${pairId}", ".R2.filtered.fastq.gz"),
@@ -250,7 +250,9 @@ process itsFilterAndTrim {
                         compress = TRUE,
                         verbose = TRUE,
                         multithread = ${task.cpus})
-    write.csv(out, paste0("${pairId}", ".trimmed.txt"))
+    #Change input read counts to actual raw read counts
+    out2[1] <- out1[1]
+    write.csv(out2, paste0("${pairId}", ".trimmed.txt"))
     """
 }
 }
