@@ -26,8 +26,8 @@ def helpMessage() {
       --reference                   Path to taxonomic database to be used for annotation (e.g. gg_13_8_train_set_97.fa.gz)
       --fwdprimer                   Sequence of forward primer (for ITS mode only)
       --revprimer                   Sequence of reverse primer (for ITS mode only)
-      --amplicon                    Type of amplicon that is being analyzed (16S or ITS) 
    Other arguments:
+      --amplicon                    Type of amplicon that is being analyzed (16S or ITS), default = '16S' 
       --pool                        Should sample pooling be used to aid identification of low-abundance ASVs? Options are pseudo pooling: "pseudo", true: "T", false: "F"
       --outdir                      The output directory where the results will be saved
       --email                       Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits
