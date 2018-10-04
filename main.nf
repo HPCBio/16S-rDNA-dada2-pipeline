@@ -161,7 +161,7 @@ log.info "========================================="
 
 process runFastQC {
     tag { "rFQC.${pairId}" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: false
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
 
     input:
         set pairId, file(in_fastq) from dada2ReadPairsToQual
@@ -179,7 +179,7 @@ process runFastQC {
 
 process runMultiQC{
     tag { "rMQC" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: 'copy', overwrite: false
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: 'copy', overwrite: true
 
     input:
         file('*') from fastqc_files.collect()
@@ -196,7 +196,7 @@ process runMultiQC{
 if(params.amplicon == 'ITS'){
 process itsFilterAndTrim {
     tag { "itsFilterAndTrim" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: false
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
     errorStrategy 'ignore'
 
     input:
@@ -261,7 +261,7 @@ process itsFilterAndTrim {
 else if (params.amplicon == '16S'){
 process filterAndTrim {
     tag { "filterAndTrim" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: false
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
     errorStrategy 'ignore'
 
     input:
@@ -303,7 +303,7 @@ process filterAndTrim {
 
 process runFastQC_postfilterandtrim {
     tag { "rFQC_post_FT.${pairId}" }
-    publishDir "${params.outdir}/FastQC_post_filter_trim", mode: "copy", overwrite: false
+    publishDir "${params.outdir}/FastQC_post_filter_trim", mode: "copy", overwrite: true
 
     input:
     set val(pairId), file(filtFor), file(filtRev) from filteredReadsforQC
@@ -324,7 +324,7 @@ process runFastQC_postfilterandtrim {
 
 process runMultiQC_postfilterandtrim {
     tag { "rMQC_post_FT" }
-    publishDir "${params.outdir}/FastQC_post_filter_trim", mode: 'copy', overwrite: false
+    publishDir "${params.outdir}/FastQC_post_filter_trim", mode: 'copy', overwrite: true
 
     input:
         file('*') from fastqc_files_2.collect()
@@ -343,7 +343,7 @@ process runMultiQC_postfilterandtrim {
 
 process mergeTrimmedTable {
     tag { "mergTrimmedTable" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: false
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
 
     input:
     file trimData from trimTracking.collect()
@@ -377,7 +377,7 @@ process mergeTrimmedTable {
 
 process LearnErrorsFor {
     tag { "LearnErrorsFor" }
-    publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy", overwrite: false
+    publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy", overwrite: true
 
     input:
     file fReads from forReads.collect()
@@ -411,7 +411,7 @@ process LearnErrorsFor {
 
 process LearnErrorsRev {
     tag { "LearnErrorsRev" }
-    publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy", overwrite: false
+    publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy", overwrite: true
 
     input:
     file rReads from revReads.collect()
@@ -455,7 +455,7 @@ process LearnErrorsRev {
 
 process SampleInferDerepAndMerge {
     tag { "SampleInferDerepAndMerge" }
-    publishDir "${params.outdir}/dada2-Derep", mode: "copy", overwrite: false
+    publishDir "${params.outdir}/dada2-Derep", mode: "copy", overwrite: true
 
     input:
     set val(pairId), file(filtFor), file(filtRev) from filteredReads
@@ -524,7 +524,7 @@ process SampleInferDerepAndMerge {
 
 process mergeDadaRDS {
     tag { "mergeDadaRDS" }
-    publishDir "${params.outdir}/dada2-Inference", mode: "copy", overwrite: false
+    publishDir "${params.outdir}/dada2-Inference", mode: "copy", overwrite: true
 
     input:
     file ddFs from dadaFor.collect()
@@ -561,7 +561,7 @@ process mergeDadaRDS {
 
 process SequenceTable {
     tag { "SequenceTable" }
-    publishDir "${params.outdir}/dada2-SeqTable", mode: "copy", overwrite: false
+    publishDir "${params.outdir}/dada2-SeqTable", mode: "copy", overwrite: true
 
     input:
     file mr from mergedReads.collect()
@@ -602,7 +602,7 @@ if (params.species) {
 
     process ChimeraTaxonomySpecies {
         tag { "ChimeraTaxonomySpecies" }
-        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: false
+        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
 
         input:
         file st from seqTable
@@ -642,7 +642,7 @@ if (params.species) {
 
     process ChimeraTaxonomy {
         tag { "ChimeraTaxonomy" }
-        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: false
+        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
 
         input:
         file st from seqTable
@@ -703,7 +703,7 @@ if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
 
     process AlignReads {
         tag { "AlignReads" }
-        publishDir "${params.outdir}/dada2-Alignment", mode: "copy", overwrite: false
+        publishDir "${params.outdir}/dada2-Alignment", mode: "copy", overwrite: true
 
         input:
         file sTable from seqTableFinalTree
@@ -732,7 +732,7 @@ if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
 
         process GenerateTreePhangorn {
             tag { "GenerateTreePhangorn" }
-            publishDir "${params.outdir}/dada2-Phangorn", mode: "copy", overwrite: false
+            publishDir "${params.outdir}/dada2-Phangorn", mode: "copy", overwrite: true
 
             input:
             file aln from alnFile
@@ -768,7 +768,7 @@ if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
 
         process GenerateTreeFasttree {
             tag { "GenerateTreeFasttree" }
-            publishDir "${params.outdir}/dada2-Fasttree", mode: "copy", overwrite: false
+            publishDir "${params.outdir}/dada2-Fasttree", mode: "copy", overwrite: true
 
             input:
             file aln from alnFile
@@ -793,7 +793,7 @@ if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
 
 process BiomFile {
     tag { "BiomFile" }
-    publishDir "${params.outdir}/dada2-BIOM", mode: "copy", overwrite: false
+    publishDir "${params.outdir}/dada2-BIOM", mode: "copy", overwrite: true
 
     input:
     file sTable from seqTableFinal
@@ -828,7 +828,7 @@ process BiomFile {
 
 process ReadTracking {
     tag { "ReadTracking" }
-    publishDir "${params.outdir}/dada2-ReadTracking", mode: "copy", overwrite: false
+    publishDir "${params.outdir}/dada2-ReadTracking", mode: "copy", overwrite: true
 
     input:
     file trimmedTable from trimmedReadTracking
