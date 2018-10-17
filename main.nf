@@ -212,7 +212,7 @@ process filterAndTrim {
     } else if("${params.rmPhiX}"=="T"){
       rm.phix <- TRUE
 
-    print(pool)
+    print(rm.phix)
     out <- filterAndTrim(fwd = "${reads[0]}",
                         filt = paste0("${pairId}", ".R1.filtered.fastq.gz"),
                         rev = "${reads[1]}",
