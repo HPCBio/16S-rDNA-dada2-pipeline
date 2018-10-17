@@ -229,7 +229,6 @@ process filterAndTrim {
                         verbose = TRUE,
                         multithread = ${task.cpus})
     write.csv(out, paste0("${pairId}", ".trimmed.txt"))
-    write.csv(rm.phix, "test_rm.phix.param.txt")
     """
 }
 
