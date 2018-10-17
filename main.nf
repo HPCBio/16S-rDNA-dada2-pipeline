@@ -205,6 +205,14 @@ process filterAndTrim {
     """
     #!/usr/bin/env Rscript
     library(dada2); packageVersion("dada2")
+    
+    #Variable selection from CLI input flag --rmPhix
+    if("${params.rmPhiX}"=="F"){
+      rm.phix <- FALSE
+    } else if("${params.rmPhiX}"=="T"){
+      rm.phix <- TRUE
+
+    print(pool)
     out <- filterAndTrim(fwd = "${reads[0]}",
                         filt = paste0("${pairId}", ".R1.filtered.fastq.gz"),
                         rev = "${reads[1]}",
@@ -214,7 +222,7 @@ process filterAndTrim {
                         maxEE = c(${params.maxEEFor},${params.maxEERev}),
                         truncQ = ${params.truncQ},
                         maxN = ${params.maxN},
-                        rm.phix = ${params.rmPhiX},
+                        rm.phix = rm.phix,
                         maxLen = ${params.maxLen},
                         minLen = ${params.minLen},
                         compress = TRUE,
