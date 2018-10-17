@@ -34,7 +34,7 @@ A dada2-based workflow using the Nextflow workflow manager.  The basic pipeline 
       --truncQ                      integer. Truncate reads at the first instance of a quality score less than or equal to                                         truncQ; default=2
       --maxN                        integer. Discard reads with more than maxN number of Ns in read; default=0
       --maxLen                      integer. maximum length of sequence; maxLen is enforced before trimming and                                                   truncation; default=Inf (no maximum)
-      --minLen                      integer. minLen is enforced after trimming and                                                                                 truncation; default=20
+      --minLen                      integer. minLen is enforced after trimming and truncation; default=50
       --rmPhiX                      {"T","F"}. remove PhiX from read              
       --minOverlap                  integer. minimum length of the overlap required for merging R1 and R2; default=20                                             (dada2 package default=12)
       --maxMismatch                 integer. The maximum mismatches allowed in the overlap region; default=0
