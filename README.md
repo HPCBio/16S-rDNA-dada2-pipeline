@@ -29,25 +29,25 @@ A dada2-based workflow using the Nextflow workflow manager.  The basic pipeline 
       --trimRev                     integer. headcrop of read2
       --truncFor                    integer. tailcrop of read1. enforced before trimming
       --truncRev                    integer. tailcrop of read2. enforced before trimming
-      --maxEEFor                    integer. After truncation, R1 reads with higher than maxEE "expected errors" will be                                           discarded. EE = sum(10^(-Q/10)), default=2
-      --maxEERev                    integer. After truncation, R1 reads with higher than maxEE "expected errors" will be                                           discarded. EE = sum(10^(-Q/10)), default=2
-      --truncQ                      integer. Truncate reads at the first instance of a quality score less than or equal to                                         truncQ; default=2
+      --maxEEFor                    integer. After truncation, R1 reads with higher than maxEE "expected errors" will be  discarded. EE = sum(10^(-Q/10)), default=2
+      --maxEERev                    integer. After truncation, R1 reads with higher than maxEE "expected errors" will be  discarded. EE = sum(10^(-Q/10)), default=2
+      --truncQ                      integer. Truncate reads at the first instance of a quality score less than or equal to  truncQ; default=2
       --maxN                        integer. Discard reads with more than maxN number of Ns in read; default=0
-      --maxLen                      integer. maximum length of sequence; maxLen is enforced before trimming and                                                   truncation; default=Inf (no maximum)
+      --maxLen                      integer. maximum length of sequence; maxLen is enforced before trimming and truncation; default=Inf (no maximum)
       --minLen                      integer. minLen is enforced after trimming and truncation; default=50
       --rmPhiX                      {"T","F"}. remove PhiX from read              
-      --minOverlap                  integer. minimum length of the overlap required for merging R1 and R2; default=20                                             (dada2 package default=12)
+      --minOverlap                  integer. minimum length of the overlap required for merging R1 and R2; default=20 (dada2 package default=12)
       --maxMismatch                 integer. The maximum mismatches allowed in the overlap region; default=0
       --trimOverhang                {"T","F"}. If "T" (true), "overhangs" in the alignment between R1 and R2 are trimmed                                           off. "Overhangs" are when R2 extends past the start of R1, and vice-versa, as can                                             happen when reads are longer than the amplicon and read into the other-direction                                               primer region. Default="F" (false)
   
     Other arguments:
-      --pool                        Should sample pooling be used to aid identification of low-abundance ASVs? Options are                                         pseudo pooling: "pseudo", true: "T", false: "F"
+      --pool                        Should sample pooling be used to aid identification of low-abundance ASVs? Options are  pseudo pooling: "pseudo", true: "T", false: "F"
       --outdir                      The output directory where the results will be saved
-      --email                       Set this parameter to your e-mail address to get a summary e-mail with details of the run                                     sent to you when the workflow exits
-      -name                         Name for the pipeline run. If not specified, Nextflow will automatically generate a random                                     mnemonic.
+      --email                       Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits
+      -name                         Name for the pipeline run. If not specified, Nextflow will automatically generate a random  mnemonic.
     
      Help:
-      --help                        Will print out summary above when executing nextflow run uct-cbio/16S-rDNA-dada2-pipeline                                     --help
+      --help                        Will print out summary above when executing nextflow run uct-cbio/16S-rDNA-dada2-pipeline                                   
      Example run:
      To run on UCT hex
      1) Start a 'screen' session from the headnode
