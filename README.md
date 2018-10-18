@@ -19,7 +19,7 @@ A dada2-based workflow using the Nextflow workflow manager.  The basic pipeline 
     
     Mandatory arguments:
       --reads                       Path to input data (must be surrounded with quotes)
-      -profile                      Hardware config to use. Currently profile available for UCT's HPC 'uct_hex' - create your                                     own if necessary
+      -profile                      Hardware config to use. Currently profile available for UCT's HPC 'uct_hex' - create your own if necessary
       --trimFor                     integer. headcrop of read1 (set 0 if no trimming is needed)
       --trimRev                     integer. headcrop of read2 (set 0 if no trimming is needed)
       --reference                   Path to taxonomic database to be used for annotation (e.g. gg_13_8_train_set_97.fa.gz)
