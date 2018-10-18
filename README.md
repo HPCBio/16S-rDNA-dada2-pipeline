@@ -38,7 +38,7 @@ A dada2-based workflow using the Nextflow workflow manager.  The basic pipeline 
       --rmPhiX                      {"T","F"}. remove PhiX from read              
       --minOverlap                  integer. minimum length of the overlap required for merging R1 and R2; default=20 (dada2 package default=12)
       --maxMismatch                 integer. The maximum mismatches allowed in the overlap region; default=0
-      --trimOverhang                {"T","F"}. If "T" (true), "overhangs" in the alignment between R1 and R2 are trimmed                                           off. "Overhangs" are when R2 extends past the start of R1, and vice-versa, as can                                             happen when reads are longer than the amplicon and read into the other-direction                                               primer region. Default="F" (false)
+      --trimOverhang                {"T","F"}. If "T" (true), "overhangs" in the alignment between R1 and R2 are trimmed off. "Overhangs" are when R2 extends past the start of R1, and vice-versa, as can happen when reads are longer than the amplicon and read into the other-direction primer region. Default="F" (false)
   
     Other arguments:
       --pool                        Should sample pooling be used to aid identification of low-abundance ASVs? Options are  pseudo pooling: "pseudo", true: "T", false: "F"
