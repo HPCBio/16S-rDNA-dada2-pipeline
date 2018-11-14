@@ -14,39 +14,62 @@ def helpMessage() {
      ${params.base}/16S-rDNA-dada2-pipeline  ~  version ${params.version}
     ===================================
     Usage:
-    The typical command for running the pipeline is as follows:
-    nextflow run ${params.base}/16S-rDNA-dada2-pipeline --reads '*_R{1,2}.fastq.gz' --trimFor 24 --trimRev 25 --reference 'gg_13_8_train_set_97.fa.gz' -profile uct_hex
+
+    This pipeline can be run specifying parameters in a config file or with command line flags.
+    The typical example for running the pipeline with command line flags is as follows:
+    nextflow run uct-cbio/16S-rDNA-dada2-pipeline --reads '*_R{1,2}.fastq.gz' --trimFor 24 --trimRev 25 --reference 'gg_13_8_train_set_97.fa.gz' -profile uct_hex
+    The typical command for running the pipeline with command line flags is as follows:
+    nextflow run -c <dada2.conf>  <dada2.nf> -profile uct_hext
+
+    where: 
+    dada2.conf is the configuration file
+    dada2.nf   is the pipeline script
+    
+    To override existing values from the command line, please type these parameters:
+    
     Mandatory arguments:
       --reads                       Path to input data (must be surrounded with quotes)
-      -profile                      Hardware config to use. local / uct_hex / uiuc_biocluster
-      --trimFor                     Set length of R1 (--trimFor) that needs to be trimmed (set 0 if no trimming is needed)(For 16S mode only)
-      --trimRev                     Set length of R2 (--trimRev) that needs to be trimmed (set 0 if no trimming is needed)(For 16S mode only)
+      -profile                      Hardware config to use. Currently profile available for UCT's HPC 'uct_hex' - create your own if necessary
+                                    NB -profile should always be specified on the command line, not in the config file
+      --trimFor                     integer. headcrop of read1 (set 0 if no trimming is needed)
+      --trimRev                     integer. headcrop of read2 (set 0 if no trimming is needed)
       --reference                   Path to taxonomic database to be used for annotation (e.g. gg_13_8_train_set_97.fa.gz)
-      --fwdprimer                   Sequence of forward primer (for ITS mode only)
-      --revprimer                   Sequence of reverse primer (for ITS mode only)
-   Other arguments:
-      --amplicon                    Type of amplicon that is being analyzed (16S or ITS), default = '16S' 
-      --pool                        Should sample pooling be used to aid identification of low-abundance ASVs? Options are pseudo pooling: "pseudo", true: "T", false: "F"
+    
+    All available read preparation parameters:
+      --trimFor                     integer. headcrop of read1
+      --trimRev                     integer. headcrop of read2
+      --truncFor                    integer. tailcrop of read1. enforced before trimming
+      --truncRev                    integer. tailcrop of read2. enforced before trimming
+      --maxEEFor                    integer. After truncation, R1 reads with higher than maxEE "expected errors" will be discarded. EE = sum(10^(-Q/10)), default=2
+      --maxEERev                    integer. After truncation, R1 reads with higher than maxEE "expected errors" will be discarded. EE = sum(10^(-Q/10)), default=2
+      --truncQ                      integer. Truncate reads at the first instance of a quality score less than or equal to truncQ; default=2
+      --maxN                        integer. Discard reads with more than maxN number of Ns in read; default=0
+      --maxLen                      integer. maximum length of sequence; maxLen is enforced before trimming and truncation; default=Inf (no maximum)
+      --minLen                      integer. minLen is enforced after trimming and truncation; default=50
+      --rmPhiX                      {"T","F"}. remove PhiX from read              
+      --minOverlap                  integer. minimum length of the overlap required for merging R1 and R2; default=20 (dada2 package default=12)
+      --maxMismatch                 integer. The maximum mismatches allowed in the overlap region; default=0
+      --trimOverhang                {"T","F"}. If "T" (true), "overhangs" in the alignment between R1 and R2 are trimmed off. 
+                                    "Overhangs" are when R2 extends past the start of R1, and vice-versa, as can happen when reads are longer than the amplicon and read into the other-direction                                               primer region. Default="F" (false)
+  
+    Other arguments:
+      --pool                        Should sample pooling be used to aid identification of low-abundance ASVs? Options are                                         
+                                    pseudo pooling: "pseudo", true: "T", false: "F"
       --outdir                      The output directory where the results will be saved
-      --email                       Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits
+      --email                       Set this parameter to your e-mail address to get a summary e-mail with details of the run                                     
+                                    sent to you when the workflow exits
       -name                         Name for the pipeline run. If not specified, Nextflow will automatically generate a random mnemonic.
-    Trimming arguments (optional):
-      --truncFor                    Select minimum acceptable length for R1 (--truncFor). Reads will be truncated at truncFor and reads shorter than this are discarded (default 0, no trimming).
-      --truncRev                    Select minimum acceptable length for R2 (--truncRev). Reads will be truncated at truncRev and reads shorter than this are discarded (default 0, no trimming).
-      --maxEEFor                    After truncation, R1 reads with higher than maxEE "expected errors" will be discarded. EE = sum(10^(-Q/10)), default=2
-      --maxEERev                    After truncation, R2 reads with higher than maxEE "expected errors" will be discarded. EE = sum(10^(-Q/10)), default=2
-      --truncQ                      Truncate reads at the first instance of a quality score less than or equal to truncQ; default=2
-      --maxN                        After truncation, sequences with more than maxN Ns will be discarded. Note that dada() does not allow Ns; default=0
-      --maxLen                      Remove reads with length greater than maxLen. maxLen is enforced before trimming and truncation; default=Inf (no maximum)
-      --minLen                      Remove reads with length less than minLen. minLen is enforced after trimming and truncation; default=50
+    
+    Help:
+      --help                        Will print out summary above when executing nextflow run uct-cbio/16S-rDNA-dada2-pipeline
 
-      Merging arguments (optional):
+    Merging arguments (optional):
       --minOverlap                  The minimum length of the overlap required for merging R1 and R2; default=20 (dada2 package default=12)
       --maxMismatch                 The maximum mismatches allowed in the overlap region; default=0.
       --trimOverhang                If "T" (true), "overhangs" in the alignment between R1 and R2 are trimmed off. "Overhangs" are when R2 extends past the start of R1, and vice-versa, as can happen
                                     when reads are longer than the amplicon and read into the other-direction primer region. Default="F" (false)
 
-      Taxonomic arguments (optional):
+    Taxonomic arguments (optional):
       --species                     Specify path to fasta file. See dada2 addSpecies() for more detail.
     """.stripIndent()
 }
@@ -278,7 +301,14 @@ process filterAndTrim {
     """
     #!/usr/bin/env Rscript
     library(dada2); packageVersion("dada2")
-
+    
+    #Variable selection from CLI input flag --rmPhix
+    if("${params.rmPhiX}"=="F"){
+      rm.phix <- FALSE
+    } else if("${params.rmPhiX}"=="T"){
+      rm.phix <- TRUE
+    }
+    print(rm.phix)
     out <- filterAndTrim(fwd = "${reads[0]}",
                         filt = paste0("${pairId}", ".R1.filtered.fastq.gz"),
                         rev = "${reads[1]}",
@@ -288,7 +318,7 @@ process filterAndTrim {
                         maxEE = c(${params.maxEEFor},${params.maxEERev}),
                         truncQ = ${params.truncQ},
                         maxN = ${params.maxN},
-                        rm.phix = ${params.rmPhiX},
+                        rm.phix = rm.phix,
                         maxLen = ${params.maxLen},
                         minLen = ${params.minLen},
                         compress = TRUE,
