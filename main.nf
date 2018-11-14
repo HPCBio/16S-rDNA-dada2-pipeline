@@ -4,14 +4,14 @@
                D A D A 2   P I P E L I N E
 ========================================================================================
  DADA2 NEXTFLOW PIPELINE FOR UCT CBIO
- 
+
 ----------------------------------------------------------------------------------------
 */
 
 def helpMessage() {
     log.info"""
     ===================================
-     uct-cbio/16S-rDNA-dada2-pipeline  ~  version ${params.version}
+     ${params.base}/16S-rDNA-dada2-pipeline  ~  version ${params.version}
     ===================================
     Usage:
 
@@ -60,9 +60,17 @@ def helpMessage() {
                                     sent to you when the workflow exits
       -name                         Name for the pipeline run. If not specified, Nextflow will automatically generate a random mnemonic.
     
-     Help:
+    Help:
       --help                        Will print out summary above when executing nextflow run uct-cbio/16S-rDNA-dada2-pipeline
 
+    Merging arguments (optional):
+      --minOverlap                  The minimum length of the overlap required for merging R1 and R2; default=20 (dada2 package default=12)
+      --maxMismatch                 The maximum mismatches allowed in the overlap region; default=0.
+      --trimOverhang                If "T" (true), "overhangs" in the alignment between R1 and R2 are trimmed off. "Overhangs" are when R2 extends past the start of R1, and vice-versa, as can happen
+                                    when reads are longer than the amplicon and read into the other-direction primer region. Default="F" (false)
+
+    Taxonomic arguments (optional):
+      --species                     Specify path to fasta file. See dada2 addSpecies() for more detail.
     """.stripIndent()
 }
 
@@ -75,8 +83,11 @@ params.name = false
 params.project = false
 params.email = false
 params.plaintext_email = false
+params.precheck = false
+params.runtree = false
+params.amplicon = "V4"
 
-// Show help emssage
+// Show help message
 params.help = false
 if (params.help){
     helpMessage()
@@ -84,16 +95,24 @@ if (params.help){
 }
 
 //Validate inputs
-if ( params.trimFor == false ) {
+if ( params.trimFor == false && params.amplicon == '16S') {
     exit 1, "Must set length of R1 (--trimFor) that needs to be trimmed (set 0 if no trimming is needed)"
 }
 
-if ( params.trimRev == false ) {
+if ( params.trimRev == false && params.amplicon == '16S') {
     exit 1, "Must set length of R2 (--trimRev) that needs to be trimmed (set 0 if no trimming is needed)"
 }
 
 if ( params.reference == false ) {
     exit 1, "Must set reference database using --reference"
+}
+
+if (params.fwdprimer == false && params.amplicon == 'ITS'){
+    exit 1, "Must set forward primer using --fwdprimer"
+}
+
+if (params.revprimer == false && params.amplicon == 'ITS'){
+    exit 1, "Must set reverse primer using --revprimer"
 }
 
 // Has the run name been specified by the user?
@@ -112,11 +131,14 @@ refFile = file(params.reference)
 
 // Header log info
 log.info "==================================="
-log.info " uct-cbio/16S-rDNA-dada2-pipeline  ~  version ${params.version}"
+log.info " ${params.base}/16S-rDNA-dada2-pipeline  ~  version ${params.version}"
 log.info "==================================="
 def summary = [:]
 summary['Run Name']     = custom_runName ?: workflow.runName
 summary['Reads']        = params.reads
+summary['Forward primer'] = params.fwdprimer
+summary['Reverse primer'] = params.revprimer
+summary['Amplicon type'] = params.amplicon
 summary['trimFor'] = params.trimFor
 summary['trimRev'] = params.trimRev
 summary['truncFor'] = params.truncFor
@@ -160,7 +182,7 @@ log.info "========================================="
 
 process runFastQC {
     tag { "rFQC.${pairId}" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: false
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
 
     input:
         set pairId, file(in_fastq) from dada2ReadPairsToQual
@@ -178,7 +200,7 @@ process runFastQC {
 
 process runMultiQC{
     tag { "rMQC" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: 'copy', overwrite: false
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: 'copy', overwrite: true
 
     input:
         file('*') from fastqc_files.collect()
@@ -191,10 +213,13 @@ process runMultiQC{
     """
 }
 
-process filterAndTrim {
-    tag { "filterAndTrim" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: false
-  
+/* ITS amplicon filtering */
+if(params.amplicon == 'ITS'){
+process itsFilterAndTrim {
+    tag { "itsFilterAndTrim" }
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
+    errorStrategy 'ignore'
+
     input:
     set pairId, file(reads) from dada2ReadPairs
 
@@ -203,6 +228,74 @@ process filterAndTrim {
     file "*.R1.filtered.fastq.gz" into forReads
     file "*.R2.filtered.fastq.gz" into revReads
     file "*.trimmed.txt" into trimTracking
+
+    when:
+    params.precheck == false
+
+    script:
+    """
+    #!/usr/bin/env Rscript
+    library(dada2); packageVersion("dada2")
+    library(ShortRead); packageVersion("ShortRead")
+    library(Biostrings); packageVersion("Biostrings")
+
+    #Filter out reads with N's
+    out1 <- filterAndTrim(fwd = "${reads[0]}",
+                        filt = paste0("${pairId}", ".R1.noN.fastq.gz"),
+                        rev = "${reads[1]}",
+                        filt.rev = paste0("${pairId}", ".R2.noN.fastq.gz"),
+                        maxN = 0,
+                        multithread = ${task.cpus})
+    FWD.RC <- dada2:::rc("${params.fwdprimer}")
+    REV.RC <- dada2:::rc("${params.revprimer}")
+    # Trim FWD and the reverse-complement of REV off of R1 (forward reads)
+    R1.flags <- paste("-g", "${params.fwdprimer}", "-a", REV.RC) 
+    # Trim REV and the reverse-complement of FWD off of R2 (reverse reads)
+    R2.flags <- paste("-G", "${params.revprimer}", "-A", FWD.RC) 
+    system2('cutadapt', args = c(R1.flags, R2.flags, "-n", 2, 
+                        "-o", paste0("${pairId}",".R1.cutadapt.fastq.gz"),
+                        "-p", paste0("${pairId}",".R2.cutadapt.fastq.gz"), 
+                        paste0("${pairId}",".R1.noN.fastq.gz"), 
+                        paste0("${pairId}",".R2.noN.fastq.gz")))
+    
+    out2 <- filterAndTrim(fwd = paste0("${pairId}",".R1.cutadapt.fastq.gz"),
+                        filt = paste0("${pairId}", ".R1.filtered.fastq.gz"),
+                        rev = paste0("${pairId}",".R2.cutadapt.fastq.gz"),
+                        filt.rev = paste0("${pairId}", ".R2.filtered.fastq.gz"),
+                        maxEE = c(${params.maxEEFor},${params.maxEERev}),
+                        truncQ = ${params.truncQ},
+                        maxN = ${params.maxN},
+                        rm.phix = ${params.rmPhiX},
+                        maxLen = ${params.maxLen},
+                        minLen = ${params.minLen},
+                        compress = TRUE,
+                        verbose = TRUE,
+                        multithread = ${task.cpus})
+    #Change input read counts to actual raw read counts
+    out2[1] <- out1[1]
+    write.csv(out2, paste0("${pairId}", ".trimmed.txt"))
+    """
+}
+}
+
+/* 16S amplicon filtering */
+else if (params.amplicon == '16S'){
+process filterAndTrim {
+    tag { "filterAndTrim" }
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
+    errorStrategy 'ignore'
+
+    input:
+    set pairId, file(reads) from dada2ReadPairs
+
+    output:
+    set val(pairId), "*.R1.filtered.fastq.gz", "*.R2.filtered.fastq.gz" into filteredReadsforQC, filteredReads
+    file "*.R1.filtered.fastq.gz" into forReads
+    file "*.R2.filtered.fastq.gz" into revReads
+    file "*.trimmed.txt" into trimTracking
+
+    when:
+    params.precheck == false
 
     script:
     """
@@ -234,16 +327,20 @@ process filterAndTrim {
     write.csv(out, paste0("${pairId}", ".trimmed.txt"))
     """
 }
+}
 
 process runFastQC_postfilterandtrim {
     tag { "rFQC_post_FT.${pairId}" }
-    publishDir "${params.outdir}/FastQC_post_filter_trim", mode: "copy", overwrite: false
+    publishDir "${params.outdir}/FastQC_post_filter_trim", mode: "copy", overwrite: true
 
     input:
     set val(pairId), file(filtFor), file(filtRev) from filteredReadsforQC
-    
+
     output:
         file("${pairId}_fastqc_postfiltertrim/*.zip") into fastqc_files_2
+
+    when:
+    params.precheck == false
 
     """
     mkdir ${pairId}_fastqc_postfiltertrim
@@ -255,13 +352,17 @@ process runFastQC_postfilterandtrim {
 
 process runMultiQC_postfilterandtrim {
     tag { "rMQC_post_FT" }
-    publishDir "${params.outdir}/FastQC_post_filter_trim", mode: 'copy', overwrite: false
+    publishDir "${params.outdir}/FastQC_post_filter_trim", mode: 'copy', overwrite: true
 
     input:
         file('*') from fastqc_files_2.collect()
 
     output:
         file('multiqc_report.html')
+
+    when:
+    params.precheck == false
+
 
     """
     multiqc .
@@ -270,13 +371,17 @@ process runMultiQC_postfilterandtrim {
 
 process mergeTrimmedTable {
     tag { "mergTrimmedTable" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: false
-  
+    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
+
     input:
     file trimData from trimTracking.collect()
 
     output:
     file "all.trimmed.csv" into trimmedReadTracking
+
+    when:
+    params.precheck == false
+
 
     script:
     """
@@ -300,13 +405,17 @@ process mergeTrimmedTable {
 
 process LearnErrorsFor {
     tag { "LearnErrorsFor" }
-    publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy", overwrite: false
-  
+    publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy", overwrite: true
+
     input:
     file fReads from forReads.collect()
 
     output:
     file "errorsF.RDS" into errorsFor
+
+    when:
+    params.precheck == false
+
 
     script:
     """
@@ -330,13 +439,17 @@ process LearnErrorsFor {
 
 process LearnErrorsRev {
     tag { "LearnErrorsRev" }
-    publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy", overwrite: false
-  
+    publishDir "${params.outdir}/dada2-LearnErrors", mode: "copy", overwrite: true
+
     input:
     file rReads from revReads.collect()
 
     output:
     file "errorsR.RDS" into errorsRev
+
+    when:
+    params.precheck == false
+
 
     script:
     """
@@ -370,8 +483,8 @@ process LearnErrorsRev {
 
 process SampleInferDerepAndMerge {
     tag { "SampleInferDerepAndMerge" }
-    publishDir "${params.outdir}/dada2-Derep", mode: "copy", overwrite: false
-  
+    publishDir "${params.outdir}/dada2-Derep", mode: "copy", overwrite: true
+
     input:
     set val(pairId), file(filtFor), file(filtRev) from filteredReads
     file errFor from errorsFor
@@ -382,6 +495,10 @@ process SampleInferDerepAndMerge {
     file "*.ddF.RDS" into dadaFor
     file "*.ddR.RDS" into dadaRev
 
+    when:
+    params.precheck == false
+
+
     script:
     """
     #!/usr/bin/env Rscript
@@ -391,19 +508,19 @@ process SampleInferDerepAndMerge {
     errF <- readRDS("${errFor}")
     errR <- readRDS("${errRev}")
     cat("Processing:", "${pairId}", "\\n")
-    
+
     #Variable selection from CLI input flag --pool
-   
+
     if("${params.pool}"=="pseudo"){
       pool <- "pseudo"
     } else if("${params.pool}"=="F"){
       pool <- FALSE
     } else if("${params.pool}"=="T"){
-      pool <- TRUE 
+      pool <- TRUE
     }
     print(pool)
     derepF <- derepFastq("${filtFor}")
-    
+
     ddF <- dada(derepF, err=errF, multithread=${task.cpus}, pool=pool)
 
     derepR <- derepFastq("${filtRev}")
@@ -414,9 +531,9 @@ process SampleInferDerepAndMerge {
       trimOverhang <- FALSE
     } else if("${params.trimOverhang}"=="T"){
       trimOverhang <- TRUE
-    }  
+    }
     print(trimOverhang)
-    
+
     merger <- mergePairs(ddF, derepF, ddR, derepR,
         minOverlap = ${params.minOverlap},
         maxMismatch = ${params.maxMismatch},
@@ -435,8 +552,8 @@ process SampleInferDerepAndMerge {
 
 process mergeDadaRDS {
     tag { "mergeDadaRDS" }
-    publishDir "${params.outdir}/dada2-Inference", mode: "copy", overwrite: false
-  
+    publishDir "${params.outdir}/dada2-Inference", mode: "copy", overwrite: true
+
     input:
     file ddFs from dadaFor.collect()
     file ddRs from dadaRev.collect()
@@ -444,6 +561,10 @@ process mergeDadaRDS {
     output:
     file "all.ddF.RDS" into dadaForReadTracking
     file "all.ddR.RDS" into dadaRevReadTracking
+
+    when:
+    params.precheck == false
+
 
     script:
     '''
@@ -468,14 +589,17 @@ process mergeDadaRDS {
 
 process SequenceTable {
     tag { "SequenceTable" }
-    publishDir "${params.outdir}/dada2-SeqTable", mode: "copy", overwrite: false
-  
+    publishDir "${params.outdir}/dada2-SeqTable", mode: "copy", overwrite: true
+
     input:
     file mr from mergedReads.collect()
 
     output:
     file "seqtab.RDS" into seqTable
     file "mergers.RDS" into mergerTracking
+
+    when:
+    params.precheck == false
 
     script:
     '''
@@ -503,11 +627,11 @@ process SequenceTable {
 if (params.species) {
 
     speciesFile = file(params.species)
-  
+
     process ChimeraTaxonomySpecies {
         tag { "ChimeraTaxonomySpecies" }
-        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: false
-      
+        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
+
         input:
         file st from seqTable
         file ref from refFile
@@ -516,6 +640,10 @@ if (params.species) {
         output:
         file "seqtab_final.RDS" into seqTableFinal,seqTableFinalTree,seqTableFinalTracking
         file "tax_final.RDS" into taxFinal
+
+        when:
+        params.precheck == false
+
 
         script:
         """
@@ -542,8 +670,8 @@ if (params.species) {
 
     process ChimeraTaxonomy {
         tag { "ChimeraTaxonomy" }
-        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: false
-      
+        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
+
         input:
         file st from seqTable
         file ref from refFile
@@ -551,6 +679,10 @@ if (params.species) {
         output:
         file "seqtab_final.RDS" into seqTableFinal,seqTableFinalTree,seqTableFinalTracking
         file "tax_final.RDS" into taxFinal
+
+        when:
+        params.precheck == false
+
 
         script:
         """
@@ -575,65 +707,132 @@ if (params.species) {
 
 /*
  *
- * Step 9: Construct phylogenetic tree
+ * Step 9: Align and construct phylogenetic tree
  *
  */
 
-// TODO: break into more steps?  phangorn takes a long time...
 
-process AlignAndGenerateTree {
-    tag { "AlignAndGenerateTree" }
-    publishDir "${params.outdir}/dada2-Alignment", mode: "copy", overwrite: false
-  
-    input:
-    file sTable from seqTableFinalTree
+/*
+ *
+ * Step 9a: Alignment
+ *
+ */
 
-    output:
-    file "aligned_seqs.fasta" into alnFile
-    file "phangorn.tree.RDS" into treeRDS
-    file "tree.newick" into treeFile
-    file "tree.GTR.newick" into treeGTRFile
+ /*
+  *
+  * Step 9b: Construct phylogenetic tree
+  *
+  */
 
-    script:
-    """
-    #!/usr/bin/env Rscript
-    library(dada2)
-    library(DECIPHER)
-    library(phangorn)
+// NOTE: 'when' directive doesn't work if channels have the same name in
+// two processes
 
-    seqs <- getSequences(readRDS("${sTable}"))
-    names(seqs) <- seqs # This propagates to the tip labels of the tree
-    alignment <- AlignSeqs(DNAStringSet(seqs),
-                           anchor=NA,
-                           processors = ${task.cpus})
-    writeXStringSet(alignment, "aligned_seqs.fasta")
+if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
 
-    # TODO: optimize this, or maybe split into a second step?
-    phang.align <- phyDat(as(alignment, "matrix"), type="DNA")
-    dm <- dist.ml(phang.align)
-    treeNJ <- NJ(dm) # Note, tip order != sequence order
-    fit = pml(treeNJ, data=phang.align)
-    write.tree(fit\$tree, file = "tree.newick")
+    process AlignReads {
+        tag { "AlignReads" }
+        publishDir "${params.outdir}/dada2-Alignment", mode: "copy", overwrite: true
 
-    ## negative edges length changed to 0!
-    fitGTR <- update(fit, k=4, inv=0.2)
-    fitGTR <- optim.pml(fitGTR, model="GTR", optInv=TRUE, optGamma=TRUE,
-                          rearrangement = "stochastic", control = pml.control(trace = 0))
-    saveRDS(fitGTR, "phangorn.tree.RDS")
-    write.tree(fitGTR\$tree, file = "tree.GTR.newick")
-    """
+        input:
+        file sTable from seqTableFinalTree
+
+        // TODO: we are only keeping the FASTA here, as we may want to switch to an
+        // alternative tree-building tool (like Fasttree or RAXML)
+        output:
+        file "aligned_seqs.fasta" into alnFile
+
+        script:
+        """
+        #!/usr/bin/env Rscript
+        library(dada2)
+        library(DECIPHER)
+
+        seqs <- getSequences(readRDS("${sTable}"))
+        names(seqs) <- seqs # This propagates to the tip labels of the tree
+        alignment <- AlignSeqs(DNAStringSet(seqs),
+                               anchor=NA,
+                               processors = ${task.cpus})
+        writeXStringSet(alignment, "aligned_seqs.fasta")
+        """
+    }
+
+    if (params.runtree == 'phangorn') {
+
+        process GenerateTreePhangorn {
+            tag { "GenerateTreePhangorn" }
+            publishDir "${params.outdir}/dada2-Phangorn", mode: "copy", overwrite: true
+
+            input:
+            file aln from alnFile
+
+            output:
+            file "phangorn.tree.RDS" into treeRDS
+            file "tree.newick" into treeFile
+            file "tree.GTR.newick" into treeGTRFile
+
+            script:
+            """
+            #!/usr/bin/env Rscript
+            library(phangorn)
+
+            phang.align <- read.phyDat("aligned_seqs.fasta",
+                                        format = "fasta",
+                                        type = "DNA")
+
+            dm <- dist.ml(phang.align)
+            treeNJ <- NJ(dm) # Note, tip order != sequence order
+            fit = pml(treeNJ, data=phang.align)
+            write.tree(fit\$tree, file = "tree.newick")
+
+            ## negative edges length changed to 0!
+            fitGTR <- update(fit, k=4, inv=0.2)
+            fitGTR <- optim.pml(fitGTR, model="GTR", optInv=TRUE, optGamma=TRUE,
+                                  rearrangement = "stochastic", control = pml.control(trace = 0))
+            saveRDS(fitGTR, "phangorn.tree.RDS")
+            write.tree(fitGTR\$tree, file = "tree.GTR.newick")
+            """
+        }
+    } else if (params.runtree == 'fasttree') {
+
+        process GenerateTreeFasttree {
+            tag { "GenerateTreeFasttree" }
+            publishDir "${params.outdir}/dada2-Fasttree", mode: "copy", overwrite: true
+
+            input:
+            file aln from alnFile
+
+            output:
+            file "fasttree.tree" into treeGTRFile
+            // need to deadend the other channels, they're hanging here
+
+            script:
+            """
+            OMP_NUM_THREADS=${task.cpus} FastTree -nt \\
+                -gtr -gamma -spr 4 -mlacc 2 -slownni \\
+                -out fasttree.tree \\
+                aligned_seqs.fasta
+            """
+        }
+
+    } else {
+        // dead-end channels generated above
+    }
 }
 
 process BiomFile {
     tag { "BiomFile" }
-    publishDir "${params.outdir}/dada2-BIOM", mode: "copy", overwrite: false
-  
+    publishDir "${params.outdir}/dada2-BIOM", mode: "copy", overwrite: true
+
     input:
     file sTable from seqTableFinal
     file tTable from taxFinal
 
     output:
     file "dada2.biom" into biomFile
+
+    when:
+    params.precheck == false
+
 
     script:
     """
@@ -657,8 +856,8 @@ process BiomFile {
 
 process ReadTracking {
     tag { "ReadTracking" }
-    publishDir "${params.outdir}/dada2-ReadTracking", mode: "copy", overwrite: false
-  
+    publishDir "${params.outdir}/dada2-ReadTracking", mode: "copy", overwrite: true
+
     input:
     file trimmedTable from trimmedReadTracking
     file sTable from seqTableFinalTracking
@@ -668,6 +867,9 @@ process ReadTracking {
 
     output:
     file "all.readtracking.txt"
+
+    when:
+    params.precheck == false
 
     script:
     """
@@ -702,10 +904,10 @@ process ReadTracking {
  * Completion e-mail notification
  */
 workflow.onComplete {
-  
-    def subject = "[uct-cbio/16S-rDNA-dada2-pipeline] Successful: $workflow.runName"
+
+    def subject = "[${params.base}/16S-rDNA-dada2-pipeline] Successful: $workflow.runName"
     if(!workflow.success){
-      subject = "[uct-cbio/16S-rDNA-dada2-pipeline] FAILED: $workflow.runName"
+      subject = "[${params.base}/16S-rDNA-dada2-pipeline] FAILED: $workflow.runName"
     }
     def email_fields = [:]
     email_fields['version'] = params.version
@@ -751,11 +953,11 @@ workflow.onComplete {
           if( params.plaintext_email ){ throw GroovyException('Send plaintext e-mail, not HTML') }
           // Try to send HTML e-mail using sendmail
           [ 'sendmail', '-t' ].execute() << sendmail_html
-          log.info "[uct-cbio/16S-rDNA-dada2-pipeline] Sent summary e-mail to $params.email (sendmail)"
+          log.info "[${params.base}/16S-rDNA-dada2-pipeline] Sent summary e-mail to $params.email (sendmail)"
         } catch (all) {
           // Catch failures and try with plaintext
           [ 'mail', '-s', subject, params.email ].execute() << email_txt
-          log.info "[uct-cbio/16S-rDNA-dada2-pipeline] Sent summary e-mail to $params.email (mail)"
+          log.info "[${params.base}/16S-rDNA-dada2-pipeline] Sent summary e-mail to $params.email (mail)"
         }
     }
 }
