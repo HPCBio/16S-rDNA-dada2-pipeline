@@ -88,6 +88,11 @@ params.precheck = false
 params.runtree = false
 params.amplicon = "V4"
 
+// Experimental; allow idtaxa from DECIPHER as an option
+params.taxassignment = 'rdp'
+
+// TODO: add checks on options
+
 // Show help message
 params.help = false
 if (params.help){
@@ -654,53 +659,89 @@ process RemoveChimeras {
  *
  */
 
-// TODO: we could combine these into the same script
 
-if (params.species) {
+if (params.taxassignment == 'rdp') {
+    // TODO: we could combine these into the same script
+    if (params.species) {
 
-    speciesFile = file(params.species)
+        speciesFile = file(params.species)
 
-    process AssignTaxSpecies {
-        tag { "AssignTaxSpecies" }
-        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
+        process AssignTaxSpeciesRDP {
+            tag { "AssignTaxSpeciesRDP" }
+            publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
 
-        input:
-        file st from seqTableFinalToTax
-        file ref from refFile
-        file sp from speciesFile
+            input:
+            file st from seqTableFinalToTax
+            file ref from refFile
+            file sp from speciesFile
 
-        output:
-        file "tax_final.RDS" into taxFinal,taxTableToTable
+            output:
+            file "tax_final.RDS" into taxFinal,taxTableToTable
 
-        when:
-        params.precheck == false
+            when:
+            params.precheck == false
 
-        script:
-        """
-        #!/usr/bin/env Rscript
-        library(dada2)
-        packageVersion("dada2")
+            script:
+            """
+            #!/usr/bin/env Rscript
+            library(dada2)
+            packageVersion("dada2")
 
-        seqtab <- readRDS("${st}")
+            seqtab <- readRDS("${st}")
 
-        # Assign taxonomy
-        tax <- assignTaxonomy(seqtab, "${ref}", multithread=${task.cpus})
-        tax <- addSpecies(tax, "${sp}")
+            # Assign taxonomy
+            tax <- assignTaxonomy(seqtab, "${ref}", multithread=${task.cpus})
+            tax <- addSpecies(tax, "${sp}")
 
-        # Write original data
-        saveRDS(tax, "tax_final.RDS")
-        """
+            # Write original data
+            saveRDS(tax, "tax_final.RDS")
+            """
+        }
+
+    } else {
+
+        process TaxonomyRDP {
+            tag { "TaxonomyRDP" }
+            publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
+
+            input:
+            file st from seqTableFinalToTax
+            file ref from refFile
+
+            output:
+            file "tax_final.RDS" into taxFinal,taxTableToTable
+
+            when:
+            params.precheck == false
+
+            script:
+            """
+            #!/usr/bin/env Rscript
+            library(dada2)
+            packageVersion("dada2")
+
+            seqtab <- readRDS("${st}")
+
+            # Assign taxonomy
+            tax <- assignTaxonomy(seqtab, "${ref}", multithread=${task.cpus})
+
+            # Write to disk
+            saveRDS(tax, "tax_final.RDS")
+            """
+        }
     }
-
-} else {
-
-    process ChimeraTaxonomy {
-        tag { "ChimeraTaxonomy" }
+} else if (params.taxassignment == 'idtaxa') {
+    // Experimental!!! This assigns full taxonomy to species level, but only for
+    // some databases; unknown whether this works with concat sequences.  ITS
+    // doesn't seem to be currently supported
+    process TaxonomyIDTAXA {
+        tag { "TaxonomyIDTAXA" }
+        cpus 12
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
 
         input:
         file st from seqTableFinalToTax
-        file ref from refFile
+        file ref from refFile // this needs to be a database from the IDTAXA site
 
         output:
         file "tax_final.RDS" into taxFinal,taxTableToTable
@@ -712,17 +753,40 @@ if (params.species) {
         """
         #!/usr/bin/env Rscript
         library(dada2)
-        packageVersion("dada2")
+        library(DECIPHER)
+        packageVersion("DECIPHER")
 
         seqtab <- readRDS("${st}")
 
-        # Assign taxonomy
-        tax <- assignTaxonomy(seqtab, "${ref}", multithread=${task.cpus})
+        # Create a DNAStringSet from the ASVs
+        dna <- DNAStringSet(getSequences(seqtab))
+
+        # load database; this should be a RData file
+        load("${refFile}")
+
+        ids <- IdTaxa(dna, trainingSet,
+            strand="top",
+            processors=${task.cpus},
+            verbose=TRUE)
+        # ranks of interest
+        ranks <- c("domain", "phylum", "class", "order", "family", "genus", "species")
+
+        # Convert the output object of class "Taxa" to a matrix analogous to the output from assignTaxonomy
+        taxid <- t(sapply(ids, function(x) {
+                m <- match(ranks, x\$rank)
+                taxa <- x\$taxon[m]
+                taxa[startsWith(taxa, "unclassified_")] <- NA
+                taxa
+        }))
+        colnames(taxid) <- ranks
+        rownames(taxid) <- getSequences(seqtab)
 
         # Write to disk
-        saveRDS(tax, "tax_final.RDS")
+        saveRDS(taxid, "tax_final.RDS")
         """
     }
+} else {
+    // die!!!!!!!!
 }
 
 // Note: this is currently a text dump.  We've found the primary issue with
@@ -733,7 +797,8 @@ if (params.species) {
 // tools like Fasttree (it doesn't seem to like that).
 
 // Safest way may be to save the simpleID -> seqs as a mapping file, use that in
-// any downstream analyses
+// any downstream steps (e.g. alignment/tree), then munge the seq names back
+// from the mapping table
 
 process GenerateTables {
     tag { "GenerateTables" }
@@ -823,20 +888,20 @@ process GenerateTables {
 
 /*
  *
- * Step 9: Align and construct phylogenetic tree
+ * Step 10: Align and construct phylogenetic tree
  *
  */
 
 
 /*
  *
- * Step 9a: Alignment
+ * Step 10a: Alignment
  *
  */
 
  /*
   *
-  * Step 9b: Construct phylogenetic tree
+  * Step 10b: Construct phylogenetic tree
   *
   */
 
