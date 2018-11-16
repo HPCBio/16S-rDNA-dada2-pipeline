@@ -78,6 +78,7 @@ def helpMessage() {
  * SET UP CONFIGURATION VARIABLES
  */
 
+// TODO: check these, they may need to go into nextflow.config
 // Configurable variables
 params.name = false
 params.project = false
@@ -619,26 +620,60 @@ process SequenceTable {
  *
  */
 
+process RemoveChimeras {
+    tag { "RemoveChimeras" }
+    publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
+
+    input:
+    file st from seqTable
+
+    output:
+    file "seqtab_final.RDS" into seqTableFinalToBiom,seqTableFinalToTax,seqTableFinalTree,seqTableFinalTracking,seqTableToTable
+
+    when:
+    params.precheck == false
+
+    script:
+    """
+    #!/usr/bin/env Rscript
+    library(dada2)
+    packageVersion("dada2")
+
+    st.all <- readRDS("${st}")
+
+    # Remove chimeras
+    seqtab <- removeBimeraDenovo(st.all, method="consensus", multithread=${task.cpus})
+
+    saveRDS(seqtab, "seqtab_final.RDS")
+    """
+}
+
+/*
+ *
+ * Step 9: Taxonomic assignment
+ *
+ */
+
+// TODO: we could combine these into the same script
+
 if (params.species) {
 
     speciesFile = file(params.species)
 
-    process ChimeraTaxonomySpecies {
-        tag { "ChimeraTaxonomySpecies" }
+    process AssignTaxSpecies {
+        tag { "AssignTaxSpecies" }
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
 
         input:
-        file st from seqTable
+        file st from seqTableFinalToTax
         file ref from refFile
         file sp from speciesFile
 
         output:
-        file "seqtab_final.RDS" into seqTableFinal,seqTableFinalTree,seqTableFinalTracking,seqTableToTable
         file "tax_final.RDS" into taxFinal,taxTableToTable
 
         when:
         params.precheck == false
-
 
         script:
         """
@@ -646,17 +681,13 @@ if (params.species) {
         library(dada2)
         packageVersion("dada2")
 
-        st.all <- readRDS("${st}")
-
-        # Remove chimeras
-        seqtab <- removeBimeraDenovo(st.all, method="consensus", multithread=${task.cpus})
+        seqtab <- readRDS("${st}")
 
         # Assign taxonomy
         tax <- assignTaxonomy(seqtab, "${ref}", multithread=${task.cpus})
         tax <- addSpecies(tax, "${sp}")
 
         # Write original data
-        saveRDS(seqtab, "seqtab_final.RDS")
         saveRDS(tax, "tax_final.RDS")
         """
     }
@@ -668,11 +699,10 @@ if (params.species) {
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
 
         input:
-        file st from seqTable
+        file st from seqTableFinalToTax
         file ref from refFile
 
         output:
-        file "seqtab_final.RDS" into seqTableFinal,seqTableFinalTree,seqTableFinalTracking,seqTableToTable
         file "tax_final.RDS" into taxFinal,taxTableToTable
 
         when:
@@ -684,24 +714,26 @@ if (params.species) {
         library(dada2)
         packageVersion("dada2")
 
-        st.all <- readRDS("${st}")
-
-        # Remove chimeras
-        seqtab <- removeBimeraDenovo(st.all, method="consensus", multithread=${task.cpus})
+        seqtab <- readRDS("${st}")
 
         # Assign taxonomy
         tax <- assignTaxonomy(seqtab, "${ref}", multithread=${task.cpus})
 
         # Write to disk
-        saveRDS(seqtab, "seqtab_final.RDS")
         saveRDS(tax, "tax_final.RDS")
         """
     }
 }
 
-// Note: this is currently a text dump; the primary issue is getting the
-// data in a form that can be useful downstream, for instance when running
-// Fasttree with long sequences as the IDs (it doesn't seem to like that)
+// Note: this is currently a text dump.  We've found the primary issue with
+// downstream analysis is getting the data in a form that can be useful as
+// input, and there isn't much consistency with this as of yet.  So for now
+// we're using the spaghetti approach (see what sticks).  Also, we  are running
+// into issues with longer sequences (e.g. concatenated ones) used as IDs with
+// tools like Fasttree (it doesn't seem to like that).
+
+// Safest way may be to save the simpleID -> seqs as a mapping file, use that in
+// any downstream analyses
 
 process GenerateTables {
     tag { "GenerateTables" }
@@ -903,12 +935,14 @@ if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
     }
 }
 
+// TODO: rewrite using the python BIOM tools
+
 process BiomFile {
     tag { "BiomFile" }
     publishDir "${params.outdir}/dada2-BIOM", mode: "copy", overwrite: true
 
     input:
-    file sTable from seqTableFinal
+    file sTable from seqTableFinalToBiom
     file tTable from taxFinal
 
     output:
