@@ -1012,7 +1012,11 @@ process ReadTracking {
 
     trimmed <- read.csv("${trimmedTable}")
 
-    track <- Reduce(function(...) merge(..., by = "SampleID"),  list(trimmed, dadaFs, dadaRs, mergers, seqtab.nochim))
+    track <- Reduce(function(...) merge(..., by = "SampleID",  all.x=TRUE),  list(trimmed, dadaFs, dadaRs, mergers, seqtab.nochim))
+    # dropped data in later steps gets converted to NA on the join
+    # these are effectively 0
+    track[is.na(track)] <- 0
+
     colnames(track) <- c("SampleID", "SequenceR1", "input", "filtered", "denoisedF", "denoisedR", "merged", "nonchim")
     write.table(track, "all.readtracking.txt", sep = "\t", row.names = FALSE)
     """
