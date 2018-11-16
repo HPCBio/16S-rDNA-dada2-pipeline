@@ -3,7 +3,7 @@
 ========================================================================================
                D A D A 2   P I P E L I N E
 ========================================================================================
- DADA2 NEXTFLOW PIPELINE FOR UCT CBIO
+ DADA2 NEXTFLOW PIPELINE FOR UCT CBIO, HPCBio
 
 ----------------------------------------------------------------------------------------
 */
@@ -216,7 +216,7 @@ process runMultiQC{
 /* ITS amplicon filtering */
 if(params.amplicon == 'ITS'){
 process itsFilterAndTrim {
-    tag { "itsFilterAndTrim" }
+    tag { "ITS_${pairId}" }
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
     errorStrategy 'ignore'
 
@@ -265,7 +265,7 @@ process itsFilterAndTrim {
                         maxEE = c(${params.maxEEFor},${params.maxEERev}),
                         truncQ = ${params.truncQ},
                         maxN = ${params.maxN},
-                        rm.phix = ${params.rmPhiX},
+                        rm.phix = as.logical(${params.rmPhiX}),
                         maxLen = ${params.maxLen},
                         minLen = ${params.minLen},
                         compress = TRUE,
@@ -281,7 +281,7 @@ process itsFilterAndTrim {
 /* 16S amplicon filtering */
 else if (params.amplicon == '16S'){
 process filterAndTrim {
-    tag { "filterAndTrim" }
+    tag { "16s_${pairId}" }
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
     errorStrategy 'ignore'
 
@@ -303,9 +303,7 @@ process filterAndTrim {
     library(dada2); packageVersion("dada2")
 
     #Variable selection from CLI input flag --rmPhix
-    rm.phix <- as.logical(${params.rmPhiX})
 
-    print(rm.phix)
     out <- filterAndTrim(fwd = "${reads[0]}",
                         filt = paste0("${pairId}", ".R1.filtered.fastq.gz"),
                         rev = "${reads[1]}",
@@ -315,7 +313,7 @@ process filterAndTrim {
                         maxEE = c(${params.maxEEFor},${params.maxEERev}),
                         truncQ = ${params.truncQ},
                         maxN = ${params.maxN},
-                        rm.phix = rm.phix,
+                        rm.phix = as.logical(${params.rmPhiX}),
                         maxLen = ${params.maxLen},
                         minLen = ${params.minLen},
                         compress = TRUE,
@@ -635,8 +633,8 @@ if (params.species) {
         file sp from speciesFile
 
         output:
-        file "seqtab_final.RDS" into seqTableFinal,seqTableFinalTree,seqTableFinalTracking
-        file "tax_final.RDS" into taxFinal
+        file "seqtab_final.RDS" into seqTableFinal,seqTableFinalTree,seqTableFinalTracking,seqTableToTable
+        file "tax_final.RDS" into taxFinal,taxTableToTable
 
         when:
         params.precheck == false
@@ -657,7 +655,7 @@ if (params.species) {
         tax <- assignTaxonomy(seqtab, "${ref}", multithread=${task.cpus})
         tax <- addSpecies(tax, "${sp}")
 
-        # Write to disk
+        # Write original data
         saveRDS(seqtab, "seqtab_final.RDS")
         saveRDS(tax, "tax_final.RDS")
         """
@@ -674,12 +672,11 @@ if (params.species) {
         file ref from refFile
 
         output:
-        file "seqtab_final.RDS" into seqTableFinal,seqTableFinalTree,seqTableFinalTracking
-        file "tax_final.RDS" into taxFinal
+        file "seqtab_final.RDS" into seqTableFinal,seqTableFinalTree,seqTableFinalTracking,seqTableToTable
+        file "tax_final.RDS" into taxFinal,taxTableToTable
 
         when:
         params.precheck == false
-
 
         script:
         """
@@ -700,6 +697,96 @@ if (params.species) {
         saveRDS(tax, "tax_final.RDS")
         """
     }
+}
+
+// Note: this is currently a text dump; the primary issue is getting the
+// data in a form that can be useful downstream, for instance when running
+// Fasttree with long sequences as the IDs (it doesn't seem to like that)
+
+process GenerateTables {
+    tag { "GenerateTables" }
+    publishDir "${params.outdir}/dada2-Tables", mode: "link", overwrite: true
+
+    input:
+    file st from seqTableToTable
+    file tax from taxTableToTable
+
+    output:
+    file "seqtab_final.simple.RDS"
+    file "tax_final.simple.RDS"
+    file "*.txt"
+    file "*.fna"
+
+    when:
+    params.precheck == false
+
+    script:
+    """
+    #!/usr/bin/env Rscript
+    library(dada2)
+    library(ShortRead)
+
+    seqtab <- readRDS("${st}")
+    tax <- readRDS("${tax}")
+
+    # Generate table output
+    write.table(data.frame('SampleID' = row.names(seqtab), seqtab),
+        file = 'seqtab_final.txt',
+        row.names = FALSE,
+        col.names=c('#SampleID', colnames(seqtab)), sep = "\t")
+
+    # Note that we use the old OTU ID for output here
+    write.table(data.frame('ASVID' = row.names(tax), tax),
+        file = 'tax_final.txt',
+        row.names = FALSE,
+        col.names=c('#OTU ID', colnames(tax)), sep = "\t")
+
+    ######################################################################
+    # Convert to simple table + FASTA, from
+    # https://github.com/LangilleLab/microbiome_helper/blob/master/convert_dada2_out.R#L69
+    ######################################################################
+
+    # replace names
+    seqs <- colnames(seqtab)
+    ids_study <- paste("seq", 1:ncol(seqtab), sep = "_")
+    colnames(seqtab) <- ids_study
+
+    # Generate OTU table output (rows = samples, cols = ASV)
+    write.table(data.frame('SampleID' = row.names(seqtab), seqtab),
+        file = 'seqtab_final.simple.txt',
+        row.names = FALSE,
+        col.names=c('#SampleID', colnames(seqtab)), sep = "\t")
+
+    # generate FASTA
+    seqs.dna <- ShortRead(sread = DNAStringSet(seqs), id = BStringSet(ids_study))
+    # Write out fasta file.
+    writeFasta(seqs.dna, file = 'asvs.simple.fna')
+
+    # Tax table
+    if(!identical(rownames(tax), seqs)){
+        stop("sequences in taxa and sequence table are not ordered the same.")
+    }
+
+    tax[is.na(tax)] <- "Unclassified"
+    rownames(tax) <- ids_study
+    taxa_combined <- apply(tax, 1, function(x) paste(x, collapse=";"))
+    taxa_out <- data.frame(names(taxa_combined), taxa_combined)
+    colnames(taxa_out) <- c("#OTU ID", "taxonomy")
+
+    write.table(data.frame('ASVID' = row.names(tax), tax),
+        file = 'tax_final.simple.full.txt',
+        row.names = FALSE,
+        col.names=c('#OTU ID', colnames(tax)), sep = "\t")
+
+    write.table(taxa_out,
+        file = 'tax_final.simple.txt',
+        row.names = FALSE,
+        sep = "\t")
+
+    # Write modified data
+    saveRDS(seqtab, "seqtab_final.simple.RDS")
+    saveRDS(tax, "tax_final.simple.RDS")
+    """
 }
 
 /*
