@@ -225,9 +225,9 @@ process itsFilterAndTrim {
     set pairId, file(reads) from dada2ReadPairs
 
     output:
-    set val(pairId), "*.R1.filtered.fastq.gz", "*.R2.filtered.fastq.gz" into filteredReadsforQC, filteredReads
-    file "*.R1.filtered.fastq.gz" into forReads
-    file "*.R2.filtered.fastq.gz" into revReads
+    set val(pairId), "*.R1.filtered.fastq.gz", "*.R2.filtered.fastq.gz" optional true into filteredReadsforQC, filteredReads
+    file "*.R1.filtered.fastq.gz" optional true into forReads
+    file "*.R2.filtered.fastq.gz" optional true into revReads
     file "*.trimmed.txt" into trimTracking
 
     when:
@@ -284,15 +284,15 @@ else if (params.amplicon == '16S'){
 process filterAndTrim {
     tag { "16s_${pairId}" }
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
-    errorStrategy 'ignore'
+    // errorStrategy 'ignore'
 
     input:
     set pairId, file(reads) from dada2ReadPairs
 
     output:
-    set val(pairId), "*.R1.filtered.fastq.gz", "*.R2.filtered.fastq.gz" into filteredReadsforQC, filteredReads
-    file "*.R1.filtered.fastq.gz" into forReads
-    file "*.R2.filtered.fastq.gz" into revReads
+    set val(pairId), "*.R1.filtered.fastq.gz", "*.R2.filtered.fastq.gz" optional true into filteredReadsforQC, filteredReads
+    file "*.R1.filtered.fastq.gz" optional true into forReads
+    file "*.R2.filtered.fastq.gz" optional true into revReads
     file "*.trimmed.txt" into trimTracking
 
     when:
@@ -366,7 +366,7 @@ process runMultiQC_postfilterandtrim {
 }
 
 process mergeTrimmedTable {
-    tag { "mergTrimmedTable" }
+    tag { "mergeTrimmedTable" }
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
 
     input:
