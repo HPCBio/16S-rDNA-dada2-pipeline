@@ -946,7 +946,7 @@ if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
         process AlignReadsInfernal {
             tag { "AlignReadsInfernal" }
             cpus 12
-            publishDir "${params.outdir}/dada2-Alignment", mode: "copy", overwrite: true
+            publishDir "${params.outdir}/dada2-Infernal", mode: "copy", overwrite: true
 
             input:
             file seqs from seqsToAln
@@ -974,7 +974,7 @@ if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
 
         process AlignReadsDECIPHER {
             tag { "AlignReadsDECIPHER" }
-            publishDir "${params.outdir}/dada2-Alignment", mode: "copy", overwrite: true
+            publishDir "${params.outdir}/dada2-DECIPHER", mode: "copy", overwrite: true
 
             input:
             file seqs from seqsToAln
