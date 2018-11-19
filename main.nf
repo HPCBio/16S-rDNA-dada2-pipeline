@@ -516,7 +516,8 @@ if (params.pool == "T" || params.pool == 'pseudo') {
         mergers <- mergePairs(ddFs, derepFs, ddRs, derepRs,
             minOverlap = ${params.minOverlap},
             maxMismatch = ${params.maxMismatch},
-            trimOverhang = as.logical("${params.trimOverhang}")
+            trimOverhang = as.logical("${params.trimOverhang}"),
+            justConcatenate=as.logical("${params.justConcatenate}")
             )
 
         # TODO: make this a single item list with ID as the name, this is lost
@@ -571,11 +572,10 @@ if (params.pool == "T" || params.pool == 'pseudo') {
         merger <- mergePairs(ddF, derepF, ddR, derepR,
             minOverlap = ${params.minOverlap},
             maxMismatch = ${params.maxMismatch},
-            trimOverhang = as.logical("${params.trimOverhang}")
+            trimOverhang = as.logical("${params.trimOverhang}"),
+            justConcatenate=as.logical("${params.justConcatenate}")
             )
 
-        # TODO: make this a single item list with ID as the name, this is lost
-        # further on
         saveRDS(merger, paste("${pairId}", "merged", "RDS", sep="."))
         saveRDS(ddF, paste("${pairId}", "ddF", "RDS", sep="."))
         saveRDS(ddR, paste("${pairId}", "ddR", "RDS", sep="."))
