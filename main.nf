@@ -74,23 +74,6 @@ def helpMessage() {
     """.stripIndent()
 }
 
-/*
- * SET UP CONFIGURATION VARIABLES
- */
-
-// TODO: check these, they may need to go into nextflow.config
-// Configurable variables
-params.name = false
-params.project = false
-params.email = false
-params.plaintext_email = false
-params.precheck = false
-params.runtree = false
-params.amplicon = "V4"
-
-// Experimental; allow idtaxa from DECIPHER as an option
-params.taxassignment = 'rdp'
-
 // TODO: add checks on options
 
 // Show help message
@@ -304,28 +287,22 @@ process filterAndTrim {
     params.precheck == false
 
     script:
+    phix = params.rmPhiX ? '--rmPhiX TRUE' : '--rmPhiX FALSE'
     """
-    #!/usr/bin/env Rscript
-    library(dada2); packageVersion("dada2")
-
-    #Variable selection from CLI input flag --rmPhix
-
-    out <- filterAndTrim(fwd = "${reads[0]}",
-                        filt = paste0("${pairId}", ".R1.filtered.fastq.gz"),
-                        rev = "${reads[1]}",
-                        filt.rev = paste0("${pairId}", ".R2.filtered.fastq.gz"),
-                        trimLeft = c(${params.trimFor},${params.trimRev}),
-                        truncLen = c(${params.truncFor},${params.truncRev}),
-                        maxEE = c(${params.maxEEFor},${params.maxEERev}),
-                        truncQ = ${params.truncQ},
-                        maxN = ${params.maxN},
-                        rm.phix = as.logical(${params.rmPhiX}),
-                        maxLen = ${params.maxLen},
-                        minLen = ${params.minLen},
-                        compress = TRUE,
-                        verbose = TRUE,
-                        multithread = ${task.cpus})
-    write.csv(out, paste0("${pairId}", ".trimmed.txt"))
+    16S_FilterAndTrim.R ${phix} --id ${pairId} \\
+        --fwd ${reads[0]} \\
+        --rev ${reads[1]} \\
+        --cpus ${task.cpus} \\
+        --trimFor ${params.trimFor} \\
+        --trimRev ${params.trimRev} \\
+        --truncFor ${params.truncFor} \\
+        --truncRev ${params.truncRev} \\
+        --truncQ ${params.truncQ} \\
+        --maxEEFor ${params.maxEEFor} \\
+        --maxEERev ${params.maxEERev} \\
+        --maxN ${params.maxN} \\
+        --maxLen ${params.maxLen} \\
+        --minLen ${params.minLen}
     """
 }
 }
@@ -480,143 +457,191 @@ process LearnErrorsRev {
  *
  */
 
-// TODO: allow serial processing of this step?
-
-process SampleInferDerepAndMerge {
-    tag { "SampleInferDerepAndMerge" }
-    publishDir "${params.outdir}/dada2-Derep", mode: "copy", overwrite: true
-
-    input:
-    set val(pairId), file(filtFor), file(filtRev) from filteredReads
-    file errFor from errorsFor
-    file errRev from errorsRev
-
-    output:
-    file "*.merged.RDS" into mergedReads
-    file "*.ddF.RDS" into dadaFor
-    file "*.ddR.RDS" into dadaRev
-
-    when:
-    params.precheck == false
-
-
-    script:
-    """
-    #!/usr/bin/env Rscript
-    library(dada2)
-    packageVersion("dada2")
-
-    errF <- readRDS("${errFor}")
-    errR <- readRDS("${errRev}")
-    cat("Processing:", "${pairId}", "\\n")
-
-    #Variable selection from CLI input flag --pool
-
-    if("${params.pool}"=="pseudo"){
-      pool <- "pseudo"
-    } else if("${params.pool}"=="F"){
-      pool <- FALSE
-    } else if("${params.pool}"=="T"){
-      pool <- TRUE
-    }
-    print(pool)
-    derepF <- derepFastq("${filtFor}")
-
-    ddF <- dada(derepF, err=errF, multithread=${task.cpus}, pool=pool)
-
-    derepR <- derepFastq("${filtRev}")
-    ddR <- dada(derepR, err=errR, multithread=${task.cpus},pool=pool)
-
-    #Variable selection from CLI input flag --trimOverhang
-    if("${params.trimOverhang}"=="F"){
-      trimOverhang <- FALSE
-    } else if("${params.trimOverhang}"=="T"){
-      trimOverhang <- TRUE
-    }
-    print(trimOverhang)
-
-    merger <- mergePairs(ddF, derepF, ddR, derepR,
-        minOverlap = ${params.minOverlap},
-        maxMismatch = ${params.maxMismatch},
-        trimOverhang = trimOverhang
-        )
-
-    # TODO: make this a single item list with ID as the name, this is lost
-    # further on
-    saveRDS(merger, paste("${pairId}", "merged", "RDS", sep="."))
-    saveRDS(ddF, paste("${pairId}", "ddF", "RDS", sep="."))
-    saveRDS(ddR, paste("${pairId}", "ddR", "RDS", sep="."))
-    """
-}
-
-// TODO: step may be obsolete if we run the above serially
-
-process mergeDadaRDS {
-    tag { "mergeDadaRDS" }
-    publishDir "${params.outdir}/dada2-Inference", mode: "copy", overwrite: true
-
-    input:
-    file ddFs from dadaFor.collect()
-    file ddRs from dadaRev.collect()
-
-    output:
-    file "all.ddF.RDS" into dadaForReadTracking
-    file "all.ddR.RDS" into dadaRevReadTracking
-
-    when:
-    params.precheck == false
-
-
-    script:
-    '''
-    #!/usr/bin/env Rscript
-    library(dada2)
-    packageVersion("dada2")
-
-    dadaFs <- lapply(list.files(path = '.', pattern = '.ddF.RDS$'), function (x) readRDS(x))
-    names(dadaFs) <- sub('.ddF.RDS', '', list.files('.', pattern = '.ddF.RDS'))
-    dadaRs <- lapply(list.files(path = '.', pattern = '.ddR.RDS$'), function (x) readRDS(x))
-    names(dadaRs) <- sub('.ddR.RDS', '', list.files('.', pattern = '.ddR.RDS'))
-    saveRDS(dadaFs, "all.ddF.RDS")
-    saveRDS(dadaRs, "all.ddR.RDS")
-    '''
-}
-
 /*
  *
  * Step 4: Construct sequence table
  *
  */
 
-process SequenceTable {
-    tag { "SequenceTable" }
-    publishDir "${params.outdir}/dada2-SeqTable", mode: "copy", overwrite: true
+if (params.pool == "T" || params.pool == 'pseudo') {
 
-    input:
-    file mr from mergedReads.collect()
+    process PoolSamplesInferDerepAndMerge {
+        tag { "PoolSamplesInferDerepAndMerge" }
+        cpus 12
+        publishDir "${params.outdir}/dada2-Derep-Pooled", mode: "copy", overwrite: true
 
-    output:
-    file "seqtab.RDS" into seqTable
-    file "mergers.RDS" into mergerTracking
+        input:
+        file filts from filteredReads.collect()
+        file errFor from errorsFor
+        file errRev from errorsRev
 
-    when:
-    params.precheck == false
+        output:
+        // file "all.merged.RDS" into mergedReads
+        file "seqtab.RDS" into seqTable
+        file "all.mergers.RDS" into mergerTracking
+        file "all.ddF.RDS" into dadaForReadTracking
+        file "all.ddR.RDS" into dadaRevReadTracking
 
-    script:
-    '''
-    #!/usr/bin/env Rscript
-    library(dada2)
-    packageVersion("dada2")
+        when:
+        params.precheck == false
 
-    mergerFiles <- list.files(path = '.', pattern = '.*.RDS$')
-    pairIds <- sub('.merged.RDS', '', mergerFiles)
-    mergers <- lapply(mergerFiles, function (x) readRDS(x))
-    names(mergers) <- pairIds
-    seqtab <- makeSequenceTable(mergers)
+        script:
+        """
+        #!/usr/bin/env Rscript
+        library(dada2)
+        packageVersion("dada2")
 
-    saveRDS(seqtab, "seqtab.RDS")
-    saveRDS(mergers, "mergers.RDS")
-    '''
+        filtFs <- list.files('.', pattern="R1.filtered.fastq.gz", full.names = TRUE)
+        filtRs <- list.files('.', pattern="R2.filtered.fastq.gz", full.names = TRUE)
+
+        errF <- readRDS("${errFor}")
+        errR <- readRDS("${errRev}")
+        cat("Processing all samples\\n")
+
+        #Variable selection from CLI input flag --pool
+        pool <- "${params.pool}"
+        if(pool=="T"){
+          pool <- as.logical(pool)
+        }
+
+        print(pool)
+        derepFs <- derepFastq(filtFs)
+
+        ddFs <- dada(derepFs, err=errF, multithread=${task.cpus}, pool=pool)
+
+        derepRs <- derepFastq(filtRs)
+
+        ddRs <- dada(derepRs, err=errR, multithread=${task.cpus}, pool=pool)
+
+        mergers <- mergePairs(ddFs, derepFs, ddRs, derepRs,
+            minOverlap = ${params.minOverlap},
+            maxMismatch = ${params.maxMismatch},
+            trimOverhang = as.logical("${params.trimOverhang}")
+            )
+
+        # TODO: make this a single item list with ID as the name, this is lost
+        # further on
+        saveRDS(mergers, "all.mergers.RDS")
+
+        saveRDS(ddFs, "all.ddF.RDS")
+
+        saveRDS(ddRs, "all.ddR.RDS")
+
+        # go ahead and make seqtable
+        seqtab <- makeSequenceTable(mergers)
+        saveRDS(seqtab, "seqtab.RDS")
+        """
+    }
+} else {
+    // pool = F, process per sample
+    process PerSampleInferDerepAndMerge {
+        tag { "PerSampleInferDerepAndMerge" }
+        publishDir "${params.outdir}/dada2-Derep", mode: "copy", overwrite: true
+
+        input:
+        set val(pairId), file(filtFor), file(filtRev) from filteredReads
+        file errFor from errorsFor
+        file errRev from errorsRev
+
+        output:
+        file "*.merged.RDS" into mergedReads
+        file "*.ddF.RDS" into dadaFor
+        file "*.ddR.RDS" into dadaRev
+
+        when:
+        params.precheck == false
+
+        script:
+        """
+        #!/usr/bin/env Rscript
+        library(dada2)
+        packageVersion("dada2")
+
+        errF <- readRDS("${errFor}")
+        errR <- readRDS("${errRev}")
+        cat("Processing:", "${pairId}", "\\n")
+
+        derepF <- derepFastq("${filtFor}")
+
+        ddF <- dada(derepF, err=errF, multithread=${task.cpus}, pool=as.logical("${params.pool}"))
+
+        derepR <- derepFastq("${filtRev}")
+        ddR <- dada(derepR, err=errR, multithread=${task.cpus}, pool=as.logical("${params.pool}"))
+
+        merger <- mergePairs(ddF, derepF, ddR, derepR,
+            minOverlap = ${params.minOverlap},
+            maxMismatch = ${params.maxMismatch},
+            trimOverhang = as.logical("${params.trimOverhang}")
+            )
+
+        # TODO: make this a single item list with ID as the name, this is lost
+        # further on
+        saveRDS(merger, paste("${pairId}", "merged", "RDS", sep="."))
+        saveRDS(ddF, paste("${pairId}", "ddF", "RDS", sep="."))
+        saveRDS(ddR, paste("${pairId}", "ddR", "RDS", sep="."))
+        """
+    }
+
+    process mergeDadaRDS {
+        tag { "mergeDadaRDS" }
+        publishDir "${params.outdir}/dada2-Inference", mode: "copy", overwrite: true
+
+        input:
+        file ddFs from dadaFor.collect()
+        file ddRs from dadaRev.collect()
+
+        output:
+        file "all.ddF.RDS" into dadaForReadTracking
+        file "all.ddR.RDS" into dadaRevReadTracking
+
+        when:
+        params.precheck == false
+
+        script:
+        '''
+        #!/usr/bin/env Rscript
+        library(dada2)
+        packageVersion("dada2")
+
+        dadaFs <- lapply(list.files(path = '.', pattern = '.ddF.RDS$'), function (x) readRDS(x))
+        names(dadaFs) <- sub('.ddF.RDS', '', list.files('.', pattern = '.ddF.RDS'))
+        dadaRs <- lapply(list.files(path = '.', pattern = '.ddR.RDS$'), function (x) readRDS(x))
+        names(dadaRs) <- sub('.ddR.RDS', '', list.files('.', pattern = '.ddR.RDS'))
+        saveRDS(dadaFs, "all.ddF.RDS")
+        saveRDS(dadaRs, "all.ddR.RDS")
+        '''
+    }
+
+    process SequenceTable {
+        tag { "SequenceTable" }
+        publishDir "${params.outdir}/dada2-SeqTable", mode: "copy", overwrite: true
+
+        input:
+        file mr from mergedReads.collect()
+
+        output:
+        file "seqtab.RDS" into seqTable
+        file "all.mergers.RDS" into mergerTracking
+
+        when:
+        params.precheck == false
+
+        script:
+        '''
+        #!/usr/bin/env Rscript
+        library(dada2)
+        packageVersion("dada2")
+
+        mergerFiles <- list.files(path = '.', pattern = '.*.RDS$')
+        pairIds <- sub('.merged.RDS', '', mergerFiles)
+        mergers <- lapply(mergerFiles, function (x) readRDS(x))
+        names(mergers) <- pairIds
+        seqtab <- makeSequenceTable(mergers)
+
+        saveRDS(seqtab, "seqtab.RDS")
+        saveRDS(mergers, "all.mergers.RDS")
+        '''
+    }
 }
 
 /*
@@ -1064,15 +1089,19 @@ process ReadTracking {
     getN <- function(x) sum(getUniques(x))
 
     dadaFs <- as.data.frame(sapply(readRDS("${ddFs}"), getN))
+    rownames(dadaFs) <- gsub('.R1.filtered.fastq.gz', '',rownames(dadaFs))
     dadaFs\$SampleID <- rownames(dadaFs)
 
     dadaRs <- as.data.frame(sapply(readRDS("${ddRs}"), getN))
+    rownames(dadaRs) <- gsub('.R1.filtered.fastq.gz', '',rownames(dadaRs))
     dadaRs\$SampleID <- rownames(dadaRs)
 
     mergers <- as.data.frame(sapply(readRDS("${mergers}"), getN))
+    rownames(mergers) <- gsub('.R1.filtered.fastq.gz', '',rownames(mergers))
     mergers\$SampleID <- rownames(mergers)
 
     seqtab.nochim <- as.data.frame(rowSums(readRDS("${sTable}")))
+    rownames(seqtab.nochim) <- gsub('.R1.filtered.fastq.gz', '',rownames(seqtab.nochim))
     seqtab.nochim\$SampleID <- rownames(seqtab.nochim)
 
     trimmed <- read.csv("${trimmedTable}")
