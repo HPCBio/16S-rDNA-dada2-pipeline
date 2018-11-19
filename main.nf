@@ -1088,12 +1088,13 @@ process ReadTracking {
 
     getN <- function(x) sum(getUniques(x))
 
+    # the gsub here might be a bit brittle...
     dadaFs <- as.data.frame(sapply(readRDS("${ddFs}"), getN))
     rownames(dadaFs) <- gsub('.R1.filtered.fastq.gz', '',rownames(dadaFs))
     dadaFs\$SampleID <- rownames(dadaFs)
 
     dadaRs <- as.data.frame(sapply(readRDS("${ddRs}"), getN))
-    rownames(dadaRs) <- gsub('.R1.filtered.fastq.gz', '',rownames(dadaRs))
+    rownames(dadaRs) <- gsub('.R2.filtered.fastq.gz', '',rownames(dadaRs))
     dadaRs\$SampleID <- rownames(dadaRs)
 
     mergers <- as.data.frame(sapply(readRDS("${mergers}"), getN))
