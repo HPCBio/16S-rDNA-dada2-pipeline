@@ -104,6 +104,10 @@ if (params.revprimer == false && params.amplicon == 'ITS'){
     exit 1, "Must set reverse primer using --revprimer"
 }
 
+if (params.aligner == 'infernal' && params.infernalCM == false){
+    exit 1, "Must set covariance model using --infernalCM when using Infernal"
+}
+
 // Has the run name been specified by the user?
 //  this has the bonus effect of catching both -name and --name
 custom_runName = params.name
@@ -811,7 +815,7 @@ if (params.taxassignment == 'rdp') {
         """
     }
 } else {
-    // die!!!!!!!!
+    exit 1, "Unknown taxonomic assignment method set: ${params.taxassignment}"
 }
 
 // Note: this is currently a text dump.  We've found the primary issue with
@@ -834,10 +838,10 @@ process GenerateTables {
     file tax from taxTableToTable
 
     output:
-    file "seqtab_final.simple.RDS"
-    file "tax_final.simple.RDS"
+    file "seqtab_final.simple.RDS" into seqtabToPhyloseq
+    file "tax_final.simple.RDS" into taxtabToPhyloseq
     file "*.txt"
-    file "*.fna"
+    file "*.fna" into seqsToAln // this will likely be used downstream for alignment and analysis
 
     when:
     params.precheck == false
@@ -870,7 +874,7 @@ process GenerateTables {
 
     # replace names
     seqs <- colnames(seqtab)
-    ids_study <- paste("seq", 1:ncol(seqtab), sep = "_")
+    ids_study <- paste("ASV", 1:ncol(seqtab), sep = "_")
     colnames(seqtab) <- ids_study
 
     # Generate OTU table output (rows = samples, cols = ASV)
@@ -935,31 +939,64 @@ process GenerateTables {
 
 if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
 
-    process AlignReadsDECIPHER {
-        tag { "AlignReadsDECIPHER" }
-        publishDir "${params.outdir}/dada2-Alignment", mode: "copy", overwrite: true
+    if (params.aligner == 'infernal') {
 
-        input:
-        file sTable from seqTableFinalTree
+        cmFile = file(params.infernalCM)
 
-        // TODO: we are only keeping the FASTA here, as we may want to switch to an
-        // alternative tree-building tool (like Fasttree or RAXML)
-        output:
-        file "aligned_seqs.fasta" into alnFile
+        process AlignReadsInfernal {
+            tag { "AlignReadsInfernal" }
+            cpus 12
+            publishDir "${params.outdir}/dada2-Alignment", mode: "copy", overwrite: true
 
-        script:
-        """
-        #!/usr/bin/env Rscript
-        library(dada2)
-        library(DECIPHER)
+            input:
+            file seqs from seqsToAln
+            file cm from cmFile
 
-        seqs <- getSequences(readRDS("${sTable}"))
-        names(seqs) <- seqs # This propagates to the tip labels of the tree
-        alignment <- AlignSeqs(DNAStringSet(seqs),
-                               anchor=NA,
-                               processors = ${task.cpus})
-        writeXStringSet(alignment, "aligned_seqs.fasta")
-        """
+            output:
+            file "aligned_seqs.stk"
+            file "aln.scores"
+            file "aligned_seqs.fasta" into alnFile
+
+            script:
+            """
+            # from the original IM-TORNADO pipeline
+            cmalign --cpu ${task.cpus} \\
+                  -g --notrunc --sub --dnaout --noprob \\
+                  --sfile aln.scores \\
+                  -o aligned_seqs.stk \\
+                  ${cm} ${seqs}
+
+            # script from P. Jeraldo (Mayo)
+            stkToFasta.py aligned_seqs.stk aligned_seqs.fasta
+            """
+        }
+    } else if (params.aligner == 'DECIPHER') {
+
+        process AlignReadsDECIPHER {
+            tag { "AlignReadsDECIPHER" }
+            publishDir "${params.outdir}/dada2-Alignment", mode: "copy", overwrite: true
+
+            input:
+            file seqs from seqsToAln
+
+            output:
+            file "aligned_seqs.fasta" into alnFile
+
+            script:
+            """
+            #!/usr/bin/env Rscript
+            library(dada2)
+            library(DECIPHER)
+
+            seqs <- readDNAStringSet("${seqs}")
+            alignment <- AlignSeqs(seqs,
+                                   anchor=NA,
+                                   processors = ${task.cpus})
+            writeXStringSet(alignment, "aligned_seqs.fasta")
+            """
+        }
+    } else {
+        exit 1, "Unknown aligner option: ${params.aligner}"
     }
 
     if (params.runtree == 'phangorn') {
