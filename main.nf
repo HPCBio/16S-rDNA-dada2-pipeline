@@ -935,8 +935,8 @@ process GenerateTables {
 
 if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
 
-    process AlignReads {
-        tag { "AlignReads" }
+    process AlignReadsDECIPHER {
+        tag { "AlignReadsDECIPHER" }
         publishDir "${params.outdir}/dada2-Alignment", mode: "copy", overwrite: true
 
         input:
