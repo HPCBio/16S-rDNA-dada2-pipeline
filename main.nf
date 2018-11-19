@@ -178,28 +178,26 @@ process runFastQC {
     publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
 
     input:
-        set pairId, file(in_fastq) from dada2ReadPairsToQual
+    set pairId, file(in_fastq) from dada2ReadPairsToQual
 
     output:
-        file("${pairId}_fastqc/*.zip") into fastqc_files
+    file '*_fastqc.{zip,html}' into fastqc_files,fastqc_files2
 
     """
-    mkdir ${pairId}_fastqc
-    fastqc --outdir ${pairId}_fastqc \
-    ${in_fastq.get(0)} \
-    ${in_fastq.get(1)}
+    fastqc -q ${in_fastq.get(0)} ${in_fastq.get(1)}
     """
 }
 
-process runMultiQC{
-    tag { "rMQC" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: 'copy', overwrite: true
+process runMultiQC {
+    tag { "runMultiQC" }
+    publishDir "${params.outdir}/FastQC_post_filter_trim", mode: 'copy', overwrite: true
 
     input:
-        file('*') from fastqc_files.collect()
+    file('./raw-seq/*') from fastqc_files.collect()
 
     output:
-        file('multiqc_report.html')
+    file "*_report.html" into multiqc_report
+    file "*_data"
 
     """
     multiqc .
@@ -208,107 +206,107 @@ process runMultiQC{
 
 /* ITS amplicon filtering */
 if(params.amplicon == 'ITS'){
-process itsFilterAndTrim {
-    tag { "ITS_${pairId}" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
-    errorStrategy 'ignore'
+    process itsFilterAndTrim {
+        tag { "ITS_${pairId}" }
+        publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
+        errorStrategy 'ignore'
 
-    input:
-    set pairId, file(reads) from dada2ReadPairs
+        input:
+        set pairId, file(reads) from dada2ReadPairs
 
-    output:
-    set val(pairId), "*.R1.filtered.fastq.gz", "*.R2.filtered.fastq.gz" optional true into filteredReadsforQC, filteredReads
-    file "*.R1.filtered.fastq.gz" optional true into forReads
-    file "*.R2.filtered.fastq.gz" optional true into revReads
-    file "*.trimmed.txt" into trimTracking
+        output:
+        set val(pairId), "*.R1.filtered.fastq.gz", "*.R2.filtered.fastq.gz" optional true into filteredReadsforQC, filteredReads
+        file "*.R1.filtered.fastq.gz" optional true into forReads
+        file "*.R2.filtered.fastq.gz" optional true into revReads
+        file "*.trimmed.txt" into trimTracking
 
-    when:
-    params.precheck == false
+        when:
+        params.precheck == false
 
-    script:
-    """
-    #!/usr/bin/env Rscript
-    library(dada2); packageVersion("dada2")
-    library(ShortRead); packageVersion("ShortRead")
-    library(Biostrings); packageVersion("Biostrings")
+        script:
+        """
+        #!/usr/bin/env Rscript
+        library(dada2); packageVersion("dada2")
+        library(ShortRead); packageVersion("ShortRead")
+        library(Biostrings); packageVersion("Biostrings")
 
-    #Filter out reads with N's
-    out1 <- filterAndTrim(fwd = "${reads[0]}",
-                        filt = paste0("${pairId}", ".R1.noN.fastq.gz"),
-                        rev = "${reads[1]}",
-                        filt.rev = paste0("${pairId}", ".R2.noN.fastq.gz"),
-                        maxN = 0,
-                        multithread = ${task.cpus})
-    FWD.RC <- dada2:::rc("${params.fwdprimer}")
-    REV.RC <- dada2:::rc("${params.revprimer}")
-    # Trim FWD and the reverse-complement of REV off of R1 (forward reads)
-    R1.flags <- paste("-g", "${params.fwdprimer}", "-a", REV.RC)
-    # Trim REV and the reverse-complement of FWD off of R2 (reverse reads)
-    R2.flags <- paste("-G", "${params.revprimer}", "-A", FWD.RC)
-    system2('cutadapt', args = c(R1.flags, R2.flags, "-n", 2,
-                        "-o", paste0("${pairId}",".R1.cutadapt.fastq.gz"),
-                        "-p", paste0("${pairId}",".R2.cutadapt.fastq.gz"),
-                        paste0("${pairId}",".R1.noN.fastq.gz"),
-                        paste0("${pairId}",".R2.noN.fastq.gz")))
+        #Filter out reads with N's
+        out1 <- filterAndTrim(fwd = "${reads[0]}",
+                            filt = paste0("${pairId}", ".R1.noN.fastq.gz"),
+                            rev = "${reads[1]}",
+                            filt.rev = paste0("${pairId}", ".R2.noN.fastq.gz"),
+                            maxN = 0,
+                            multithread = ${task.cpus})
+        FWD.RC <- dada2:::rc("${params.fwdprimer}")
+        REV.RC <- dada2:::rc("${params.revprimer}")
+        # Trim FWD and the reverse-complement of REV off of R1 (forward reads)
+        R1.flags <- paste("-g", "${params.fwdprimer}", "-a", REV.RC)
+        # Trim REV and the reverse-complement of FWD off of R2 (reverse reads)
+        R2.flags <- paste("-G", "${params.revprimer}", "-A", FWD.RC)
+        system2('cutadapt', args = c(R1.flags, R2.flags, "-n", 2,
+                            "-o", paste0("${pairId}",".R1.cutadapt.fastq.gz"),
+                            "-p", paste0("${pairId}",".R2.cutadapt.fastq.gz"),
+                            paste0("${pairId}",".R1.noN.fastq.gz"),
+                            paste0("${pairId}",".R2.noN.fastq.gz")))
 
-    out2 <- filterAndTrim(fwd = paste0("${pairId}",".R1.cutadapt.fastq.gz"),
-                        filt = paste0("${pairId}", ".R1.filtered.fastq.gz"),
-                        rev = paste0("${pairId}",".R2.cutadapt.fastq.gz"),
-                        filt.rev = paste0("${pairId}", ".R2.filtered.fastq.gz"),
-                        maxEE = c(${params.maxEEFor},${params.maxEERev}),
-                        truncQ = ${params.truncQ},
-                        maxN = ${params.maxN},
-                        rm.phix = as.logical(${params.rmPhiX}),
-                        maxLen = ${params.maxLen},
-                        minLen = ${params.minLen},
-                        compress = TRUE,
-                        verbose = TRUE,
-                        multithread = ${task.cpus})
-    #Change input read counts to actual raw read counts
-    out2[1] <- out1[1]
-    write.csv(out2, paste0("${pairId}", ".trimmed.txt"))
-    """
-}
+        out2 <- filterAndTrim(fwd = paste0("${pairId}",".R1.cutadapt.fastq.gz"),
+                            filt = paste0("${pairId}", ".R1.filtered.fastq.gz"),
+                            rev = paste0("${pairId}",".R2.cutadapt.fastq.gz"),
+                            filt.rev = paste0("${pairId}", ".R2.filtered.fastq.gz"),
+                            maxEE = c(${params.maxEEFor},${params.maxEERev}),
+                            truncQ = ${params.truncQ},
+                            maxN = ${params.maxN},
+                            rm.phix = as.logical(${params.rmPhiX}),
+                            maxLen = ${params.maxLen},
+                            minLen = ${params.minLen},
+                            compress = TRUE,
+                            verbose = TRUE,
+                            multithread = ${task.cpus})
+        #Change input read counts to actual raw read counts
+        out2[1] <- out1[1]
+        write.csv(out2, paste0("${pairId}", ".trimmed.txt"))
+        """
+    }
 }
 
 /* 16S amplicon filtering */
 else if (params.amplicon == '16S'){
-process filterAndTrim {
-    tag { "16s_${pairId}" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
-    // errorStrategy 'ignore'
+    process filterAndTrim {
+        tag { "16s_${pairId}" }
+        publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
+        // errorStrategy 'ignore'
 
-    input:
-    set pairId, file(reads) from dada2ReadPairs
+        input:
+        set pairId, file(reads) from dada2ReadPairs
 
-    output:
-    set val(pairId), "*.R1.filtered.fastq.gz", "*.R2.filtered.fastq.gz" optional true into filteredReadsforQC, filteredReads
-    file "*.R1.filtered.fastq.gz" optional true into forReads
-    file "*.R2.filtered.fastq.gz" optional true into revReads
-    file "*.trimmed.txt" into trimTracking
+        output:
+        set val(pairId), "*.R1.filtered.fastq.gz", "*.R2.filtered.fastq.gz" optional true into filteredReadsforQC, filteredReads
+        file "*.R1.filtered.fastq.gz" optional true into forReads
+        file "*.R2.filtered.fastq.gz" optional true into revReads
+        file "*.trimmed.txt" into trimTracking
 
-    when:
-    params.precheck == false
+        when:
+        params.precheck == false
 
-    script:
-    phix = params.rmPhiX ? '--rmPhiX TRUE' : '--rmPhiX FALSE'
-    """
-    16S_FilterAndTrim.R ${phix} --id ${pairId} \\
-        --fwd ${reads[0]} \\
-        --rev ${reads[1]} \\
-        --cpus ${task.cpus} \\
-        --trimFor ${params.trimFor} \\
-        --trimRev ${params.trimRev} \\
-        --truncFor ${params.truncFor} \\
-        --truncRev ${params.truncRev} \\
-        --truncQ ${params.truncQ} \\
-        --maxEEFor ${params.maxEEFor} \\
-        --maxEERev ${params.maxEERev} \\
-        --maxN ${params.maxN} \\
-        --maxLen ${params.maxLen} \\
-        --minLen ${params.minLen}
-    """
-}
+        script:
+        phix = params.rmPhiX ? '--rmPhiX TRUE' : '--rmPhiX FALSE'
+        """
+        16S_FilterAndTrim.R ${phix} --id ${pairId} \\
+            --fwd ${reads[0]} \\
+            --rev ${reads[1]} \\
+            --cpus ${task.cpus} \\
+            --trimFor ${params.trimFor} \\
+            --trimRev ${params.trimRev} \\
+            --truncFor ${params.truncFor} \\
+            --truncRev ${params.truncRev} \\
+            --truncQ ${params.truncQ} \\
+            --maxEEFor ${params.maxEEFor} \\
+            --maxEERev ${params.maxEERev} \\
+            --maxN ${params.maxN} \\
+            --maxLen ${params.maxLen} \\
+            --minLen ${params.minLen}
+        """
+    }
 }
 
 process runFastQC_postfilterandtrim {
@@ -319,32 +317,30 @@ process runFastQC_postfilterandtrim {
     set val(pairId), file(filtFor), file(filtRev) from filteredReadsforQC
 
     output:
-        file("${pairId}_fastqc_postfiltertrim/*.zip") into fastqc_files_2
+    file '*_fastqc.{zip,html}' into fastqc_files_post
 
     when:
     params.precheck == false
 
     """
-    mkdir ${pairId}_fastqc_postfiltertrim
-    fastqc --outdir ${pairId}_fastqc_postfiltertrim \
-    ${filtFor} \
-    ${filtRev}
+    fastqc -q ${filtFor} ${filtRev}
     """
 }
 
 process runMultiQC_postfilterandtrim {
-    tag { "rMQC_post_FT" }
+    tag { "runMultiQC_postfilterandtrim" }
     publishDir "${params.outdir}/FastQC_post_filter_trim", mode: 'copy', overwrite: true
 
     input:
-        file('*') from fastqc_files_2.collect()
+    file('./raw-seq/*') from fastqc_files2.collect()
+    file('./trimmed-seq/*') from fastqc_files_post.collect()
 
     output:
-        file('multiqc_report.html')
+    file "*_report.html" into multiqc_report_post
+    file "*_data"
 
     when:
     params.precheck == false
-
 
     """
     multiqc .
@@ -363,7 +359,6 @@ process mergeTrimmedTable {
 
     when:
     params.precheck == false
-
 
     script:
     """
@@ -398,7 +393,6 @@ process LearnErrorsFor {
     when:
     params.precheck == false
 
-
     script:
     """
     #!/usr/bin/env Rscript
@@ -431,7 +425,6 @@ process LearnErrorsRev {
 
     when:
     params.precheck == false
-
 
     script:
     """
