@@ -464,7 +464,6 @@ if (params.pool == "T" || params.pool == 'pseudo') {
 
     process PoolSamplesInferDerepAndMerge {
         tag { "PoolSamplesInferDerepAndMerge" }
-        cpus 12
         publishDir "${params.outdir}/dada2-Derep-Pooled", mode: "copy", overwrite: true
 
         input:
@@ -712,8 +711,13 @@ if (params.taxassignment == 'rdp') {
             seqtab <- readRDS("${st}")
 
             # Assign taxonomy
-            tax <- assignTaxonomy(seqtab, "${ref}", multithread=${task.cpus})
-            tax <- addSpecies(tax, "${sp}")
+            tax <- assignTaxonomy(seqtab, "${ref}",
+                                    multithread=${task.cpus},
+                                    tryRC = TRUE,
+                                    verbose = TRUE)
+            tax <- addSpecies(tax, "${sp}",
+                             tryRC = TRUE,
+                             verbose = TRUE)
 
             # Write original data
             saveRDS(tax, "tax_final.RDS")
@@ -745,7 +749,10 @@ if (params.taxassignment == 'rdp') {
             seqtab <- readRDS("${st}")
 
             # Assign taxonomy
-            tax <- assignTaxonomy(seqtab, "${ref}", multithread=${task.cpus})
+            tax <- assignTaxonomy(seqtab, "${ref}",
+                                  multithread=${task.cpus},
+                                  tryRC = TRUE,
+                                  verbose = TRUE)
 
             # Write to disk
             saveRDS(tax, "tax_final.RDS")
@@ -758,7 +765,6 @@ if (params.taxassignment == 'rdp') {
     // doesn't seem to be currently supported
     process TaxonomyIDTAXA {
         tag { "TaxonomyIDTAXA" }
-        cpus 12
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
 
         input:
@@ -787,7 +793,7 @@ if (params.taxassignment == 'rdp') {
         load("${refFile}")
 
         ids <- IdTaxa(dna, trainingSet,
-            strand="top",
+            strand="both",
             processors=${task.cpus},
             verbose=TRUE)
         # ranks of interest
@@ -938,7 +944,6 @@ if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
 
         process AlignReadsInfernal {
             tag { "AlignReadsInfernal" }
-            cpus 12
             publishDir "${params.outdir}/dada2-Infernal", mode: "copy", overwrite: true
 
             input:
