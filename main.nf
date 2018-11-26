@@ -813,8 +813,10 @@ if (params.taxassignment == 'rdp') {
         saveRDS(taxid, "tax_final.RDS")
         """
     }
-} else {
+} else if (params.taxassignment) {
     exit 1, "Unknown taxonomic assignment method set: ${params.taxassignment}"
+} else {
+    // set tax channels to FALSE, which will help later...
 }
 
 // Note: this is currently a text dump.  We've found the primary issue with
@@ -875,6 +877,7 @@ process GenerateTables {
     seqs <- colnames(seqtab)
     ids_study <- paste("ASV", 1:ncol(seqtab), sep = "_")
     colnames(seqtab) <- ids_study
+    rownames(seqtab) <- gsub('.R1.filtered.fastq.gz', '',rownames(seqtab))
 
     # Generate OTU table output (rows = samples, cols = ASV)
     write.table(data.frame('SampleID' = row.names(seqtab), seqtab),
@@ -1075,7 +1078,6 @@ process BiomFile {
 
     when:
     params.precheck == false
-
 
     script:
     """
