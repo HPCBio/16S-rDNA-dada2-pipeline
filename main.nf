@@ -771,6 +771,7 @@ if (params.taxassignment == 'rdp') {
     // Experimental!!! This assigns full taxonomy to species level, but only for
     // some databases; unknown whether this works with concat sequences.  ITS
     // doesn't seem to be currently supported
+    bootstrapFinal = Channel.from(false)
     process TaxonomyIDTAXA {
         tag { "TaxonomyIDTAXA" }
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
@@ -845,6 +846,7 @@ process GenerateTables {
     input:
     file st from seqTableToTable
     file tax from taxTableToTable
+    file bt from bootstrapFinal
 
     output:
     file "seqtab_final.simple.RDS" into seqtabToPhyloseq
@@ -918,6 +920,18 @@ process GenerateTables {
         file = 'tax_final.simple.txt',
         row.names = FALSE,
         sep = "\t")
+
+    if (file.exists('bootstrap_final.RDS')) {
+        boots <- readRDS("${bt}")
+        if(!identical(rownames(boots), seqs)){
+            stop("sequences in bootstrap and sequence table are not ordered the same.")
+        }
+        rownames(boots) <- ids_study
+        write.table(data.frame('ASVID' = row.names(boots), boots),
+            file = 'tax_final.bootstraps.simple.full.txt',
+            row.names = FALSE,
+            col.names=c('#OTU ID', colnames(boots)), sep = "\t")
+    }
 
     # Write modified data
     saveRDS(seqtab, "seqtab_final.simple.RDS")
