@@ -726,7 +726,7 @@ if (params.taxassignment == 'rdp') {
 
     } else {
 
-        process TaxonomyRDP {
+        process AssignTaxonomyRDP {
             tag { "TaxonomyRDP" }
             publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
 
