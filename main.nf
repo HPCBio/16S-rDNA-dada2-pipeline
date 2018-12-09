@@ -698,6 +698,7 @@ if (params.taxassignment == 'rdp') {
 
             output:
             file "tax_final.RDS" into taxFinal,taxTableToTable
+            file "bootstrap_final.RDS" into bootstrapFinal
 
             when:
             params.precheck == false
@@ -714,13 +715,17 @@ if (params.taxassignment == 'rdp') {
             tax <- assignTaxonomy(seqtab, "${ref}",
                                     multithread=${task.cpus},
                                     tryRC = TRUE,
+                                    outputBootstraps = TRUE,
                                     verbose = TRUE)
-            tax <- addSpecies(tax, "${sp}",
+            boots <- tax\$boot
+
+            tax <- addSpecies(tax\$tax, "${sp}",
                              tryRC = TRUE,
                              verbose = TRUE)
 
             # Write original data
             saveRDS(tax, "tax_final.RDS")
+            saveRDS(boots, "bootstrap_final.RDS")
             """
         }
 
@@ -736,6 +741,7 @@ if (params.taxassignment == 'rdp') {
 
             output:
             file "tax_final.RDS" into taxFinal,taxTableToTable
+            file "bootstrap_final.RDS" into bootstrapFinal
 
             when:
             params.precheck == false
@@ -752,10 +758,12 @@ if (params.taxassignment == 'rdp') {
             tax <- assignTaxonomy(seqtab, "${ref}",
                                   multithread=${task.cpus},
                                   tryRC = TRUE,
+                                  outputBootstraps = TRUE,
                                   verbose = TRUE)
 
             # Write to disk
-            saveRDS(tax, "tax_final.RDS")
+            saveRDS(tax\$tax, "tax_final.RDS")
+            saveRDS(tax\$boot, "bootstrap_final.RDS")
             """
         }
     }
@@ -930,12 +938,6 @@ process GenerateTables {
  *
  */
 
- /*
-  *
-  * Step 10b: Construct phylogenetic tree
-  *
-  */
-
 // NOTE: 'when' directive doesn't work if channels have the same name in
 // two processes
 
@@ -999,6 +1001,12 @@ if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
     } else {
         exit 1, "Unknown aligner option: ${params.aligner}"
     }
+
+    /*
+     *
+     * Step 10b: Construct phylogenetic tree
+     *
+     */
 
     if (params.runtree == 'phangorn') {
 
