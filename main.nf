@@ -771,7 +771,6 @@ if (params.taxassignment == 'rdp') {
     // Experimental!!! This assigns full taxonomy to species level, but only for
     // some databases; unknown whether this works with concat sequences.  ITS
     // doesn't seem to be currently supported
-    bootstrapFinal = Channel.from(false)
     process TaxonomyIDTAXA {
         tag { "TaxonomyIDTAXA" }
         publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
@@ -782,6 +781,8 @@ if (params.taxassignment == 'rdp') {
 
         output:
         file "tax_final.RDS" into taxFinal,taxTableToTable
+        file "bootstrap_final.RDS" into bootstrapFinal
+        file "raw_idtaxa.RDS"
 
         when:
         params.precheck == false
@@ -807,6 +808,7 @@ if (params.taxassignment == 'rdp') {
             verbose=TRUE)
         # ranks of interest
         ranks <- c("domain", "phylum", "class", "order", "family", "genus", "species")
+        saveRDS(ids, 'raw_idtaxa.RDS')
 
         # Convert the output object of class "Taxa" to a matrix analogous to the output from assignTaxonomy
         taxid <- t(sapply(ids, function(x) {
@@ -818,8 +820,17 @@ if (params.taxassignment == 'rdp') {
         colnames(taxid) <- ranks
         rownames(taxid) <- getSequences(seqtab)
 
+        boots <- t(sapply(ids, function(x) {
+                m <- match(ranks, x\$rank)
+                bs <- x\$confidence[m]
+                bs
+        }))
+        colnames(boots) <- ranks
+        rownames(boots) <- getSequences(seqtab)
+
         # Write to disk
         saveRDS(taxid, "tax_final.RDS")
+        saveRDS(boots, "bootstrap_final.RDS")
         """
     }
 } else if (params.taxassignment) {
