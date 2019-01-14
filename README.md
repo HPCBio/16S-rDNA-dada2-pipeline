@@ -5,7 +5,7 @@
 A dada2-based workflow using the Nextflow workflow manager.  The basic pipeline is currently implemented, including some basic read-tracking. This pipeline is adapted from https://github.com/HPCBio/dada2-Nextflow for implementation on the UCT high-performance compute cluster
 
 ## Basic usage:
-
+```
 This pipeline can be run specifying parameters in a config file or with command line flags.
 The typical example for running the pipeline with command line flags is as follows:
 nextflow run uct-cbio/16S-rDNA-dada2-pipeline --reads '*_R{1,2}.fastq.gz' --trimFor 24 --trimRev 25 --reference 'gg_13_8_train_set_97.fa.gz' -profile uct_hex
@@ -62,7 +62,7 @@ Merging arguments (optional):
 
 Taxonomic arguments (optional):
   --species                     Specify path to fasta file. See dada2 addSpecies() for more detail.
-
+```
      Example run:
      To run on UCT hex
      1) Start a 'screen' session from the headnode
