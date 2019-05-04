@@ -175,7 +175,7 @@ log.info "========================================="
 
 process runFastQC {
     tag { "rFQC.${pairId}" }
-    publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
+    publishDir "${params.outdir}/FASTQC-Raw", mode: "copy", overwrite: true
 
     input:
     set pairId, file(in_fastq) from dada2ReadPairsToQual
@@ -190,7 +190,7 @@ process runFastQC {
 
 process runMultiQC {
     tag { "runMultiQC" }
-    publishDir "${params.outdir}/FastQC_post_filter_trim", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/MultiQC-Raw", mode: 'copy', overwrite: true
 
     input:
     file('./raw-seq/*') from fastqc_files.collect()
@@ -199,8 +199,10 @@ process runMultiQC {
     file "*_report.html" into multiqc_report
     file "*_data"
 
+    script:
+    interactivePlots = params.interactiveMultiQC == true ? "-ip" : ""
     """
-    multiqc .
+    multiqc ${interactivePlots} .
     """
 }
 
@@ -311,7 +313,7 @@ else if (params.amplicon == '16S'){
 
 process runFastQC_postfilterandtrim {
     tag { "rFQC_post_FT.${pairId}" }
-    publishDir "${params.outdir}/FastQC_post_filter_trim", mode: "copy", overwrite: true
+    publishDir "${params.outdir}/FastQC-Post-FilterTrim", mode: "copy", overwrite: true
 
     input:
     set val(pairId), file(filtFor), file(filtRev) from filteredReadsforQC
@@ -329,7 +331,7 @@ process runFastQC_postfilterandtrim {
 
 process runMultiQC_postfilterandtrim {
     tag { "runMultiQC_postfilterandtrim" }
-    publishDir "${params.outdir}/FastQC_post_filter_trim", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/MultiQC-Post-FilterTrim", mode: 'copy', overwrite: true
 
     input:
     file('./raw-seq/*') from fastqc_files2.collect()
@@ -342,8 +344,10 @@ process runMultiQC_postfilterandtrim {
     when:
     params.precheck == false
 
+    script:
+    interactivePlots = params.interactiveMultiQC == true ? "-ip" : ""
     """
-    multiqc .
+    multiqc ${interactivePlots} .
     """
 }
 
@@ -500,7 +504,7 @@ if (params.pool == "T" || params.pool == 'pseudo') {
           pool <- as.logical(pool)
         }
 
-        print(pool)
+        cat(pool)
         derepFs <- derepFastq(filtFs)
 
         ddFs <- dada(derepFs, err=errF, multithread=${task.cpus}, pool=pool)
