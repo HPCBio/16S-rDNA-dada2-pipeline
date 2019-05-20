@@ -1129,7 +1129,28 @@ if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
     }
 }
 
-// TODO: rewrite using the python BIOM tools
+// process BiomFile {
+//     tag { "BiomFile" }
+//     publishDir "${params.outdir}/dada2-BIOM", mode: "copy", overwrite: true
+//
+//     input:
+//     file sTable from seqTableFinalToBiom
+//     file tTable from taxFinal
+//
+//     output:
+//     file "dada2.biom" into biomFile
+//
+//     when:
+//     params.precheck == false
+//
+//     script:
+//     """
+//     biom convert -i ${seqTableFinalToBiom} \\
+//         -o seqtab-final.biom \\
+//         --table-type="OTU table" \\
+//         --to-hdf5
+//     """
+// }
 
 process BiomFile {
     tag { "BiomFile" }
@@ -1219,6 +1240,69 @@ process ReadTracking {
     write.table(track, "all.readtracking.txt", sep = "\t", row.names = FALSE)
     """
 }
+
+// if (params.toQIIME2) {
+//
+//     process toQIIME2 {
+//         tag { "QIIME2-Output" }
+//         publishDir "${params.outdir}/dada2-QIIME2", mode: "copy", overwrite: true
+//
+//         input:
+//
+//
+//         output:
+//         "*.qza"
+//
+//         script:
+//         """
+//         # Counts (Frequency table)
+//         biom convert -i ${seqtab} \\
+//             -o seqtab-biom-table.biom \\
+//             --table-type="OTU table" \\
+//             --to-hdf5
+//
+//         qiime tools import \\
+//             --input-path seqtab-biom-table.biom \\
+//             --input-format BIOMV210Format \\
+//             --output-path seqtab_final.simple.qza \\
+//             --type 'FeatureTable[Frequency]'
+//
+//         # Taxonomic ranks (ranks)
+//         # To import ranks from current table, need to take out the header
+//
+//         tail -n +2 ${tax} > headerless.txt
+//         qiime tools import \\
+//             --input-path headerless.txt \\
+//             --input-format TSVTaxonomyFormat \\
+//             --output-path tax_final.simple.qza \\
+//             --type 'FeatureData[Taxonomy]'
+//
+//         # unrooted tree (check if generated)
+//         qiime tools import \
+//             --input-path ${unrooted} \
+//             --output-path unrooted-tree.qza \
+//             --type 'Phylogeny[Unrooted]'
+//
+//         # rooted tree (check if generated)
+//         qiime tools import \
+//             --input-path ${rooted} \
+//             --output-path rooted-tree.qza \
+//             --type 'Phylogeny[Rooted]'
+//
+//         # seqs (aligned and unaligned)
+//         qiime tools import \
+//             --input-path ${seqs} \
+//             --output-path aligned-sequences.qza \
+//             --type 'FeatureData[Sequence]'
+//
+//         # check if generated?
+//         qiime tools import \
+//             --input-path ${aln} \
+//             --output-path aligned-sequences.qza \
+//             --type 'FeatureData[AlignedSequence]'
+//         """
+//     }
+// }
 
 /*
  * Completion e-mail notification
