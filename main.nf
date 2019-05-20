@@ -530,6 +530,8 @@ if (params.pool == "T" || params.pool == 'pseudo') {
 
         # go ahead and make seqtable
         seqtab <- makeSequenceTable(mergers)
+        seqtab <- seqtab[,nchar(colnames(seqtab)) >= ${params.minLen}]
+
         saveRDS(seqtab, "seqtab.RDS")
         """
     }
@@ -637,6 +639,7 @@ if (params.pool == "T" || params.pool == 'pseudo') {
         mergers <- lapply(mergerFiles, function (x) readRDS(x))
         names(mergers) <- pairIds
         seqtab <- makeSequenceTable(mergers)
+        seqtab <- seqtab[,nchar(colnames(seqtab)) >= ${params.minLen}]
 
         saveRDS(seqtab, "seqtab.RDS")
         saveRDS(mergers, "all.mergers.RDS")
@@ -837,6 +840,7 @@ if (params.taxassignment == 'rdp') {
         saveRDS(boots, "bootstrap_final.RDS")
         """
     }
+
 } else if (params.taxassignment) {
     exit 1, "Unknown taxonomic assignment method set: ${params.taxassignment}"
 } else {
@@ -1097,6 +1101,31 @@ if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
 
     } else {
         // dead-end channels generated above
+    }
+
+    process RootTree {
+        tag { "RootTree" }
+        publishDir "${params.outdir}/dada2-RootedTree", mode: "link"
+
+        input:
+        file tree from treeGTRFile
+
+        output:
+        file "rooted.newick" into rootedTreeFile
+        // need to deadend the other channels, they're hanging here
+
+        script:
+        """
+        #!/usr/bin/env Rscript
+        library(phangorn)
+        library(ape)
+
+        tree <- read.tree(file = "${tree}")
+
+        midtree <- midpoint(tree)
+
+        write.tree(fit\$tree, file = "rooted.newick")
+        """
     }
 }
 
