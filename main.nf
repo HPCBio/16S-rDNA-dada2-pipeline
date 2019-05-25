@@ -870,8 +870,10 @@ process GenerateTables {
     output:
     file "seqtab_final.simple.RDS" into seqtabToPhyloseq
     file "tax_final.simple.RDS" into taxtabToPhyloseq
+    file "asvs.simple.fna" into seqsToAln, seqsToQIIME2 // this will likely be used downstream for alignment and analysis
+    file "tax_final.simple.txt" into taxtableToQIIME2
+    file "seqtab_final.simple.txt" into featuretableToQIIME2
     file "*.txt"
-    file "*.fna" into seqsToAln // this will likely be used downstream for alignment and analysis
 
     when:
     params.precheck == false
@@ -991,7 +993,7 @@ if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
             output:
             file "aligned_seqs.stk"
             file "aln.scores"
-            file "aligned_seqs.fasta" into alnFile
+            file "aligned_seqs.fasta" into alnFile,alnToQIIME2
 
             script:
             """
@@ -1016,7 +1018,7 @@ if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
             file seqs from seqsToAln
 
             output:
-            file "aligned_seqs.fasta" into alnFile
+            file "aligned_seqs.fasta" into alnFile,alnToQIIME2
 
             script:
             """
@@ -1087,7 +1089,7 @@ if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
             file aln from alnFile
 
             output:
-            file "fasttree.tree" into treeGTRFile
+            file "fasttree.tree" into treeGTRFile, treeToQIIME2
             // need to deadend the other channels, they're hanging here
 
             script:
@@ -1111,7 +1113,7 @@ if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
         file tree from treeGTRFile
 
         output:
-        file "rooted.newick" into rootedTreeFile
+        file "rooted.newick" into rootedTreeFile, rootedToQIIME2
         // need to deadend the other channels, they're hanging here
 
         script:
@@ -1124,7 +1126,7 @@ if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
 
         midtree <- midpoint(tree)
 
-        write.tree(fit\$tree, file = "rooted.newick")
+        write.tree(midtree, file = "rooted.newick")
         """
     }
 }
@@ -1163,7 +1165,7 @@ process BiomFile {
  *
  */
 
-// Broken: needs a left-join on the initial table
+// Broken?: needs a left-join on the initial table
 
 process ReadTracking {
     tag { "ReadTracking" }
@@ -1218,6 +1220,74 @@ process ReadTracking {
     colnames(track) <- c("SampleID", "SequenceR1", "input", "filtered", "denoisedF", "denoisedR", "merged", "nonchim")
     write.table(track, "all.readtracking.txt", sep = "\t", row.names = FALSE)
     """
+}
+
+if (params.toQIIME2) {
+
+    process toQIIME2 {
+        tag { "QIIME2-Output" }
+        publishDir "${params.outdir}/dada2-QIIME2", mode: "link"
+
+        input:
+        file rooted from rootedToQIIME2
+        file tree from treeToQIIME2
+        file seqtab from featuretableToQIIME2
+        file taxtab from taxtableToQIIME2
+        file seqs from seqsToQIIME2
+        file aln from alnToQIIME2
+
+        output:
+        file "*.qza"
+
+        script:
+        """
+        # Counts (Frequency table)
+        biom convert -i ${seqtab} \\
+            -o seqtab-biom-table.biom \\
+            --table-type="OTU table" \\
+            --to-hdf5
+
+        qiime tools import \\
+            --input-path seqtab-biom-table.biom \\
+            --input-format BIOMV210Format \\
+            --output-path seqtab_final.simple.qza \\
+            --type 'FeatureTable[Frequency]'
+
+        # Taxonomic ranks (ranks)
+        # To import ranks from current table, need to take out the header
+
+        tail -n +2 ${taxtab} > headerless.txt
+        qiime tools import \\
+            --input-path headerless.txt \\
+            --input-format HeaderlessTSVTaxonomyFormat \\
+            --output-path tax_final.simple.qza \\
+            --type 'FeatureData[Taxonomy]'
+
+        # unrooted tree (check if generated)
+        qiime tools import \\
+            --input-path ${tree} \\
+            --output-path unrooted-tree.qza \\
+            --type 'Phylogeny[Unrooted]'
+
+        # rooted tree (check if generated)
+        qiime tools import \\
+            --input-path ${rooted} \\
+            --output-path rooted-tree.qza \\
+            --type 'Phylogeny[Rooted]'
+
+        # seqs (aligned and unaligned)
+        qiime tools import \\
+            --input-path ${seqs} \\
+            --output-path sequences.qza \\
+            --type 'FeatureData[Sequence]'
+
+        # check if generated?
+        qiime tools import \\
+            --input-path ${aln} \\
+            --output-path aligned-sequences.qza \\
+            --type 'FeatureData[AlignedSequence]'
+        """
+    }
 }
 
 /*
