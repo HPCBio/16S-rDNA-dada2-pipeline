@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 
+# TODO: parameterize?  I hate long bash script parameter lists
+# toQIIME2 ${seqtab} ${taxtab} ${tree} ${rooted} ${seqs} ${aln}
+
 # Counts (Frequency table)
-biom convert -i $0 \
+biom convert -i $1 \
     -o seqtab-biom-table.biom \
     --table-type="OTU table" \
     --to-hdf5
@@ -15,7 +18,7 @@ qiime tools import \
 # Taxonomic ranks (ranks)
 # To import ranks from current table, need to take out the header
 
-tail -n +2 ${taxtab} > headerless.txt
+tail -n +2 $2 > headerless.txt
 qiime tools import \
     --input-path headerless.txt \
     --input-format HeaderlessTSVTaxonomyFormat \
@@ -24,24 +27,24 @@ qiime tools import \
 
 # unrooted tree (check if generated)
 qiime tools import \
-    --input-path ${tree} \
+    --input-path $3 \
     --output-path unrooted-tree.qza \
     --type 'Phylogeny[Unrooted]'
 
 # rooted tree (check if generated)
 qiime tools import \
-    --input-path ${rooted} \
+    --input-path $4 \
     --output-path rooted-tree.qza \
     --type 'Phylogeny[Rooted]'
 
 # seqs (aligned and unaligned)
 qiime tools import \
-    --input-path ${seqs} \
+    --input-path $5 \
     --output-path sequences.qza \
     --type 'FeatureData[Sequence]'
 
 # check if generated?
 qiime tools import \
-    --input-path ${aln} \
+    --input-path $6 \
     --output-path aligned-sequences.qza \
     --type 'FeatureData[AlignedSequence]'

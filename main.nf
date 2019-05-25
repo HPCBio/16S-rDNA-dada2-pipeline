@@ -1241,51 +1241,7 @@ if (params.toQIIME2) {
 
         script:
         """
-        # Counts (Frequency table)
-        biom convert -i ${seqtab} \\
-            -o seqtab-biom-table.biom \\
-            --table-type="OTU table" \\
-            --to-hdf5
-
-        qiime tools import \\
-            --input-path seqtab-biom-table.biom \\
-            --input-format BIOMV210Format \\
-            --output-path seqtab_final.simple.qza \\
-            --type 'FeatureTable[Frequency]'
-
-        # Taxonomic ranks (ranks)
-        # To import ranks from current table, need to take out the header
-
-        tail -n +2 ${taxtab} > headerless.txt
-        qiime tools import \\
-            --input-path headerless.txt \\
-            --input-format HeaderlessTSVTaxonomyFormat \\
-            --output-path tax_final.simple.qza \\
-            --type 'FeatureData[Taxonomy]'
-
-        # unrooted tree (check if generated)
-        qiime tools import \\
-            --input-path ${tree} \\
-            --output-path unrooted-tree.qza \\
-            --type 'Phylogeny[Unrooted]'
-
-        # rooted tree (check if generated)
-        qiime tools import \\
-            --input-path ${rooted} \\
-            --output-path rooted-tree.qza \\
-            --type 'Phylogeny[Rooted]'
-
-        # seqs (aligned and unaligned)
-        qiime tools import \\
-            --input-path ${seqs} \\
-            --output-path sequences.qza \\
-            --type 'FeatureData[Sequence]'
-
-        # check if generated?
-        qiime tools import \\
-            --input-path ${aln} \\
-            --output-path aligned-sequences.qza \\
-            --type 'FeatureData[AlignedSequence]'
+        toQIIME2 ${seqtab} ${taxtab} ${tree} ${rooted} ${seqs} ${aln}
         """
     }
 }
