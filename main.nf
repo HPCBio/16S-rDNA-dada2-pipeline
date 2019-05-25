@@ -872,7 +872,7 @@ process GenerateTables {
     file "tax_final.simple.RDS" into taxtabToPhyloseq
     file "asvs.simple.fna" into seqsToAln, seqsToQIIME2 // this will likely be used downstream for alignment and analysis
     file "tax_final.simple.txt" into taxtableToQIIME2
-    file "seqtab_final.simple.txt" into featuretableToQIIME2
+    file "seqtab_final.simple.qiime2.txt" into featuretableToQIIME2
     file "*.txt"
 
     when:
@@ -906,15 +906,26 @@ process GenerateTables {
 
     # replace names
     seqs <- colnames(seqtab)
-    ids_study <- paste("ASV", 1:ncol(seqtab), sep = "_")
+    ids_study <- paste("ASV", 1:ncol(seqtab), sep = "")
     colnames(seqtab) <- ids_study
+
+    # this may bite us, very format-specific (UIUC Seq core); maybe a mapping file?
     rownames(seqtab) <- gsub('.R1.filtered.fastq.gz', '',rownames(seqtab))
 
     # Generate OTU table output (rows = samples, cols = ASV)
     write.table(data.frame('SampleID' = row.names(seqtab), seqtab),
         file = 'seqtab_final.simple.txt',
         row.names = FALSE,
-        col.names=c('#SampleID', colnames(seqtab)), sep = "\t")
+        col.names=c('#SampleID', colnames(seqtab)),
+        sep = "\t")
+
+    # Generate OTU table for QIIME2 import (rows = ASVs, cols = samples)
+    write.table(
+        data.frame('Taxa' = colnames(seqtab), t(seqtab)),
+        file = 'seqtab_final.simple.qiime2.txt',
+        row.names = FALSE,
+        quote=FALSE,
+        sep = "\t")
 
     # generate FASTA
     seqs.dna <- ShortRead(sread = DNAStringSet(seqs), id = BStringSet(ids_study))
