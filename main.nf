@@ -221,6 +221,7 @@ if(params.amplicon == 'ITS'){
         file "*.R1.filtered.fastq.gz" optional true into forReads
         file "*.R2.filtered.fastq.gz" optional true into revReads
         file "*.trimmed.txt" into trimTracking
+        file "*.cutadapt.out" into cutadaptToMultiQC
 
         when:
         params.precheck == false
@@ -245,7 +246,10 @@ if(params.amplicon == 'ITS'){
         R1.flags <- paste("-g", "${params.fwdprimer}", "-a", REV.RC)
         # Trim REV and the reverse-complement of FWD off of R2 (reverse reads)
         R2.flags <- paste("-G", "${params.revprimer}", "-A", FWD.RC)
-        system2('cutadapt', args = c(R1.flags, R2.flags, "-n", 2,
+        system2('cutadapt', stdout = paste0("${pairId}",".cutadapt.out"),
+                            args = c(R1.flags, R2.flags,
+                            "--cores", ${task.cpus},
+                            "-n", 2,
                             "-o", paste0("${pairId}",".R1.cutadapt.fastq.gz"),
                             "-p", paste0("${pairId}",".R2.cutadapt.fastq.gz"),
                             paste0("${pairId}",".R1.noN.fastq.gz"),
@@ -336,6 +340,7 @@ process runMultiQC_postfilterandtrim {
     input:
     file('./raw-seq/*') from fastqc_files2.collect()
     file('./trimmed-seq/*') from fastqc_files_post.collect()
+    file('./cutadapt/*') from cutadaptToMultiQC.collect()
 
     output:
     file "*_report.html" into multiqc_report_post
@@ -887,6 +892,10 @@ process GenerateTables {
     seqtab <- readRDS("${st}")
     tax <- readRDS("${tax}")
 
+    if (as.logical('${params.sampleRegex}' != FALSE )) {
+        rownames(seqtab) <- gsub('${params.sampleRegex}', "\\\\1", rownames(seqtab), perl = TRUE)
+    }
+
     # Generate table output
     write.table(data.frame('SampleID' = row.names(seqtab), seqtab),
         file = 'seqtab_final.txt',
@@ -1140,6 +1149,11 @@ if (!params.precheck && params.runtree && params.amplicon != 'ITS') {
         write.tree(midtree, file = "rooted.newick")
         """
     }
+} else {
+    // Note these are caught downstream
+    alnToQIIME2 = false
+    treeToQIIME2 = false
+    rootedToQIIME2 = false
 }
 
 // TODO: rewrite using the python BIOM tools
@@ -1235,24 +1249,121 @@ process ReadTracking {
 
 if (params.toQIIME2) {
 
-    process toQIIME2 {
+    process toQIIME2FeatureTable {
         tag { "QIIME2-Output" }
         publishDir "${params.outdir}/dada2-QIIME2", mode: "link"
 
         input:
-        file rooted from rootedToQIIME2
-        file tree from treeToQIIME2
         file seqtab from featuretableToQIIME2
-        file taxtab from taxtableToQIIME2
-        file seqs from seqsToQIIME2
-        file aln from alnToQIIME2
 
         output:
         file "*.qza"
 
         script:
         """
-        toQIIME2 ${seqtab} ${taxtab} ${tree} ${rooted} ${seqs} ${aln}
+        biom convert -i ${seqtab} \
+            -o seqtab-biom-table.biom \
+            --table-type="OTU table" \
+            --to-hdf5
+
+        qiime tools import \
+            --input-path seqtab-biom-table.biom \
+            --input-format BIOMV210Format \
+            --output-path seqtab_final.simple.qza \
+            --type 'FeatureTable[Frequency]'
+        """
+    }
+
+    process toQIIME2TaxTable {
+        tag { "QIIME2-Output" }
+        publishDir "${params.outdir}/dada2-QIIME2", mode: "link"
+
+        input:
+        file taxtab from taxtableToQIIME2
+
+        output:
+        file "*.qza"
+
+        when:
+        taxtableToQIIME2 != false
+
+        script:
+        """
+        tail -n +2 ${taxtab} > headerless.txt
+        qiime tools import \
+            --input-path headerless.txt \
+            --input-format HeaderlessTSVTaxonomyFormat \
+            --output-path tax_final.simple.qza \
+            --type 'FeatureData[Taxonomy]'
+        """
+    }
+
+    process toQIIME2Seq {
+        tag { "QIIME2-Output" }
+        publishDir "${params.outdir}/dada2-QIIME2", mode: "link"
+
+        input:
+        file seqs from seqsToQIIME2
+
+        output:
+        file "*.qza"
+
+        script:
+        """
+        qiime tools import \
+            --input-path ${seqs} \
+            --output-path sequences.qza \
+            --type 'FeatureData[Sequence]'
+        """
+    }
+
+    process toQIIME2Aln {
+        tag { "QIIME2-Output" }
+        publishDir "${params.outdir}/dada2-QIIME2", mode: "link"
+
+        input:
+        file aln from alnToQIIME2
+
+        when:
+        alnToQIIME2 != false
+
+        output:
+        file "*.qza"
+
+        script:
+        """
+        qiime tools import \
+            --input-path ${aln} \
+            --output-path aligned-sequences.qza \
+            --type 'FeatureData[AlignedSequence]'
+        """
+    }
+
+    process toQIIME2Tree {
+        tag { "QIIME2-Output" }
+        publishDir "${params.outdir}/dada2-QIIME2", mode: "link"
+
+        input:
+        file rooted from rootedToQIIME2
+        file tree from treeToQIIME2
+
+        output:
+        file "*.qza"
+
+        when:
+        treeToQIIME2 != false
+
+        script:
+        """
+        qiime tools import \
+            --input-path ${tree} \
+            --output-path unrooted-tree.qza \
+            --type 'Phylogeny[Unrooted]'
+
+        qiime tools import \
+            --input-path ${rooted} \
+            --output-path rooted-tree.qza \
+            --type 'Phylogeny[Rooted]'
         """
     }
 }
