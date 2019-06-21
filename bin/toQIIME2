@@ -18,24 +18,30 @@ qiime tools import \
 # Taxonomic ranks (ranks)
 # To import ranks from current table, need to take out the header
 
-tail -n +2 $2 > headerless.txt
-qiime tools import \
-    --input-path headerless.txt \
-    --input-format HeaderlessTSVTaxonomyFormat \
-    --output-path tax_final.simple.qza \
-    --type 'FeatureData[Taxonomy]'
+if [ -L $2 ]; then
+    tail -n +2 $2 > headerless.txt
+    qiime tools import \
+        --input-path headerless.txt \
+        --input-format HeaderlessTSVTaxonomyFormat \
+        --output-path tax_final.simple.qza \
+        --type 'FeatureData[Taxonomy]'
+fi
 
 # unrooted tree (check if generated)
-qiime tools import \
-    --input-path $3 \
-    --output-path unrooted-tree.qza \
-    --type 'Phylogeny[Unrooted]'
+if [ -L $3 ]; then
+    qiime tools import \
+        --input-path $3 \
+        --output-path unrooted-tree.qza \
+        --type 'Phylogeny[Unrooted]'
+fi
 
 # rooted tree (check if generated)
-qiime tools import \
-    --input-path $4 \
-    --output-path rooted-tree.qza \
-    --type 'Phylogeny[Rooted]'
+if [ -L $4 ]; then
+    qiime tools import \
+        --input-path $4 \
+        --output-path rooted-tree.qza \
+        --type 'Phylogeny[Rooted]'
+fi
 
 # seqs (aligned and unaligned)
 qiime tools import \
@@ -44,7 +50,9 @@ qiime tools import \
     --type 'FeatureData[Sequence]'
 
 # check if generated?
-qiime tools import \
-    --input-path $6 \
-    --output-path aligned-sequences.qza \
-    --type 'FeatureData[AlignedSequence]'
+if [ -L $6 ]; then
+    qiime tools import \
+        --input-path $6 \
+        --output-path aligned-sequences.qza \
+        --type 'FeatureData[AlignedSequence]'
+fi
