@@ -184,7 +184,7 @@ process runFastQC {
     file '*_fastqc.{zip,html}' into fastqc_files,fastqc_files2
 
     """
-    fastqc -q ${in_fastq.get(0)} ${in_fastq.get(1)}
+    fastqc --nogroup -q ${in_fastq.get(0)} ${in_fastq.get(1)}
     """
 }
 
@@ -207,11 +207,11 @@ process runMultiQC {
 }
 
 /* ITS amplicon filtering */
-if(params.amplicon == 'ITS'){
+if (params.amplicon == 'ITS') {
+
     process itsFilterAndTrim {
         tag { "ITS_${pairId}" }
         publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
-        errorStrategy 'ignore'
 
         input:
         set pairId, file(reads) from dada2ReadPairs
@@ -222,6 +222,8 @@ if(params.amplicon == 'ITS'){
         file "*.R2.filtered.fastq.gz" optional true into revReads
         file "*.trimmed.txt" into trimTracking
         file "*.cutadapt.out" into cutadaptToMultiQC
+        file "*.R1.cutadapt.fastq.gz"
+        file "*.R2.cutadapt.fastq.gz"
 
         when:
         params.precheck == false
@@ -260,6 +262,7 @@ if(params.amplicon == 'ITS'){
                             rev = paste0("${pairId}",".R2.cutadapt.fastq.gz"),
                             filt.rev = paste0("${pairId}", ".R2.filtered.fastq.gz"),
                             maxEE = c(${params.maxEEFor},${params.maxEERev}),
+                            truncLen = c(${params.truncFor},${params.truncRev}),
                             truncQ = ${params.truncQ},
                             maxN = ${params.maxN},
                             rm.phix = as.logical(${params.rmPhiX}),
@@ -274,13 +277,11 @@ if(params.amplicon == 'ITS'){
         """
     }
 }
-
 /* 16S amplicon filtering */
 else if (params.amplicon == '16S'){
     process filterAndTrim {
         tag { "16s_${pairId}" }
         publishDir "${params.outdir}/dada2-FilterAndTrim", mode: "copy", overwrite: true
-        // errorStrategy 'ignore'
 
         input:
         set pairId, file(reads) from dada2ReadPairs
@@ -313,6 +314,12 @@ else if (params.amplicon == '16S'){
             --minLen ${params.minLen}
         """
     }
+    cutadaptToMultiQC = Channel.empty()
+} else {
+    // We need to shut this down!
+    cutadaptToMultiQC = Channel.empty()
+    filteredReads = Channel.empty()
+    filteredReadsforQC = Channel.empty()
 }
 
 process runFastQC_postfilterandtrim {
@@ -329,7 +336,7 @@ process runFastQC_postfilterandtrim {
     params.precheck == false
 
     """
-    fastqc -q ${filtFor} ${filtRev}
+    fastqc --nogroup -q ${filtFor} ${filtRev}
     """
 }
 
@@ -519,6 +526,7 @@ if (params.pool == "T" || params.pool == 'pseudo') {
         ddRs <- dada(derepRs, err=errR, multithread=${task.cpus}, pool=pool)
 
         mergers <- mergePairs(ddFs, derepFs, ddRs, derepRs,
+            returnRejects = TRUE,
             minOverlap = ${params.minOverlap},
             maxMismatch = ${params.maxMismatch},
             trimOverhang = as.logical("${params.trimOverhang}"),
@@ -577,6 +585,7 @@ if (params.pool == "T" || params.pool == 'pseudo') {
         ddR <- dada(derepR, err=errR, multithread=${task.cpus}, pool=as.logical("${params.pool}"))
 
         merger <- mergePairs(ddF, derepF, ddR, derepR,
+            returnRejects = TRUE,
             minOverlap = ${params.minOverlap},
             maxMismatch = ${params.maxMismatch},
             trimOverhang = as.logical("${params.trimOverhang}"),
@@ -849,7 +858,10 @@ if (params.taxassignment == 'rdp') {
 } else if (params.taxassignment) {
     exit 1, "Unknown taxonomic assignment method set: ${params.taxassignment}"
 } else {
-    // set tax channels to FALSE, which will help later...
+    // set tax channels to 'false', do NOT assign taxonomy
+    taxFinal = false
+    taxTableToTable = false
+    bootstrapFinal = false
 }
 
 // Note: this is currently a text dump.  We've found the primary issue with
@@ -1170,7 +1182,7 @@ process BiomFile {
     file "dada2.biom" into biomFile
 
     when:
-    params.precheck == false
+    params.precheck == false & params.toBIOM == true
 
     script:
     """
