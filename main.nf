@@ -207,6 +207,10 @@ process runMultiQC {
 }
 
 /* ITS amplicon filtering */
+
+// Note: should explore cutadapt options more: https://github.com/benjjneb/dada2/issues/785
+// https://cutadapt.readthedocs.io/en/stable/guide.html#more-than-one
+
 if (params.amplicon == 'ITS') {
 
     process itsFilterAndTrim {
@@ -478,12 +482,20 @@ process LearnErrorsRev {
 
 if (params.pool == "T" || params.pool == 'pseudo') {
 
+    // TODO: merging should be split out, and a 'rescue' step added to capture
+    // pairs that don't merge (primarily useful for ITS and other variable-len
+    // amplicons)
+
     process PoolSamplesInferDerepAndMerge {
         tag { "PoolSamplesInferDerepAndMerge" }
         publishDir "${params.outdir}/dada2-Derep-Pooled", mode: "copy", overwrite: true
 
+        // TODO: filteredReads channel has ID and two files, should fix this
+        // with a closure, something like  { it[1:2] }, or correct the channel
+        // as the ID can't be used anyway
+
         input:
-        file filts from filteredReads.collect()
+        file filts from filteredReads.collect( )
         file errFor from errorsFor
         file errRev from errorsRev
 
@@ -493,6 +505,8 @@ if (params.pool == "T" || params.pool == 'pseudo') {
         file "all.mergers.RDS" into mergerTracking
         file "all.ddF.RDS" into dadaForReadTracking
         file "all.ddR.RDS" into dadaRevReadTracking
+        file "all.derepFs.RDS" into dadaForDerep
+        file "all.derepRs.RDS" into dadaRevDerep
 
         when:
         params.precheck == false
@@ -516,7 +530,6 @@ if (params.pool == "T" || params.pool == 'pseudo') {
           pool <- as.logical(pool)
         }
 
-        cat(pool)
         derepFs <- derepFastq(filtFs)
 
         ddFs <- dada(derepFs, err=errF, multithread=${task.cpus}, pool=pool)
@@ -538,8 +551,10 @@ if (params.pool == "T" || params.pool == 'pseudo') {
         saveRDS(mergers, "all.mergers.RDS")
 
         saveRDS(ddFs, "all.ddF.RDS")
+        saveRDS(derepFs, "all.derepFs.RDS")
 
         saveRDS(ddRs, "all.ddR.RDS")
+        saveRDS(derepRs, "all.derepRs.RDS")
 
         # go ahead and make seqtable
         seqtab <- makeSequenceTable(mergers)
@@ -560,9 +575,12 @@ if (params.pool == "T" || params.pool == 'pseudo') {
         file errRev from errorsRev
 
         output:
-        file "*.merged.RDS" into mergedReads
-        file "*.ddF.RDS" into dadaFor
-        file "*.ddR.RDS" into dadaRev
+        file "seqtab.RDS" into seqTable
+        file "all.mergers.RDS" into mergerTracking
+        file "all.ddF.RDS" into dadaForReadTracking
+        file "all.ddR.RDS" into dadaRevReadTracking
+        file "all.derepF.RDS" into dadaForDerep
+        file "all.derepR.RDS" into dadaRevDerep
 
         when:
         params.precheck == false
@@ -593,8 +611,12 @@ if (params.pool == "T" || params.pool == 'pseudo') {
             )
 
         saveRDS(merger, paste("${pairId}", "merged", "RDS", sep="."))
-        saveRDS(ddF, paste("${pairId}", "ddF", "RDS", sep="."))
-        saveRDS(ddR, paste("${pairId}", "ddR", "RDS", sep="."))
+
+        saveRDS(ddFs, "all.ddF.RDS")
+        saveRDS(derepFs, "all.derepFs.RDS")
+
+        saveRDS(ddRs, "all.ddR.RDS")
+        saveRDS(derepRs, "all.derepRs.RDS")
         """
     }
 
