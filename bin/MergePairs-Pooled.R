@@ -10,21 +10,18 @@ option_list = list(
 
     make_option(c("--minOverlap"), type="numeric", help="Min overlap"),
     make_option(c("--maxMismatch"), type="numeric", help="Max mismatch"),
-    make_option(c("--trimOverhang"), default=FALSE, action="store_true", help="Trim overhanging sequence if overlapping")
+    make_option(c("--trimOverhang"), default=FALSE, action="store_true", help="Trim overhanging sequence if overlapping"),
     make_option(c("--justConcatenate"), default=FALSE, action="store_true", help="Just concatenate sequences")
-    make_option(c("--rescueUnmerged"), default=FALSE, action="store_true", help="Rescue unmerged sequences")
 )
 
 opt <- parse_args(OptionParser(option_list=option_list))
-
-environment(mergePairsRescue) <- asNamespace('dada2')
 
 filtFs <- list.files('.', pattern="R1.filtered.fastq.gz", full.names = TRUE)
 filtRs <- list.files('.', pattern="R2.filtered.fastq.gz", full.names = TRUE)
 
 errF <- readRDS(opt$errFor)
 errR <- readRDS(opt$errRev)
-cat("Processing all samples\\n")
+cat("Processing all samples\n")
 
 #Variable selection from CLI input flag --pool
 pool <- opt$pool
@@ -60,6 +57,7 @@ saveRDS(derepRs, "all.derepRs.RDS")
 
 # go ahead and make seqtable
 seqtab <- makeSequenceTable(mergers)
-seqtab <- seqtab[,nchar(colnames(seqtab)) >= ${params.minLen}]
+
+# seqtab <- seqtab[,nchar(colnames(seqtab)) >= ${params.minLen}]
 
 saveRDS(seqtab, "seqtab.RDS")

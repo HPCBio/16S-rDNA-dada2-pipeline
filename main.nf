@@ -92,9 +92,9 @@ if ( params.trimRev == false && params.amplicon == '16S') {
     exit 1, "Must set length of R2 (--trimRev) that needs to be trimmed (set 0 if no trimming is needed)"
 }
 
-if ( params.reference == false ) {
-    exit 1, "Must set reference database using --reference"
-}
+// if ( params.reference == false ) {
+//     exit 1, "Must set reference database using --reference"
+// }
 
 if (params.fwdprimer == false && params.amplicon == 'ITS'){
     exit 1, "Must set forward primer using --fwdprimer"
@@ -119,8 +119,6 @@ Channel
     .fromFilePairs( params.reads )
     .ifEmpty { error "Cannot find any reads matching: ${params.reads}" }
     .into { dada2ReadPairsToQual; dada2ReadPairs }
-
-refFile = file(params.reference)
 
 // Header log info
 log.info "==================================="
@@ -482,10 +480,6 @@ process LearnErrorsRev {
 
 if (params.pool == "T" || params.pool == 'pseudo') {
 
-    // TODO: merging should be split out, and a 'rescue' step added to capture
-    // pairs that don't merge (primarily useful for ITS and other variable-len
-    // amplicons)
-
     process PoolSamplesInferDerepAndMerge {
         tag { "PoolSamplesInferDerepAndMerge" }
         publishDir "${params.outdir}/dada2-Derep-Pooled", mode: "copy", overwrite: true
@@ -500,7 +494,6 @@ if (params.pool == "T" || params.pool == 'pseudo') {
         file errRev from errorsRev
 
         output:
-        // file "all.merged.RDS" into mergedReads
         file "seqtab.RDS" into seqTable
         file "all.mergers.RDS" into mergerTracking
         file "all.ddF.RDS" into dadaForReadTracking
@@ -514,7 +507,7 @@ if (params.pool == "T" || params.pool == 'pseudo') {
         script:
         if (params.rescueUnmerged == true) {
         """
-        VariableLenMergePairs.R --errFor ${errFor} \\
+        VariableLenMergePairs-Pooled.R --errFor ${errFor} \\
             --errRev ${errRev} \\
             --pool ${params.pool} \\
             --cpus ${task.cpus} \\
@@ -524,9 +517,9 @@ if (params.pool == "T" || params.pool == 'pseudo') {
             --justConcatenate ${params.justConcatenate} \\
             --rescueUnmerged ${params.rescueUnmerged}
         """
-        } else {
+        } else {  // This is the normal route
         """
-        MergePairs.R --errFor ${errFor} \\
+        MergePairs-Pooled.R --errFor ${errFor} \\
             --errRev ${errRev} \\
             --pool ${params.pool} \\
             --cpus ${task.cpus} \\
@@ -698,24 +691,112 @@ process RemoveChimeras {
  */
 
 
-if (params.taxassignment == 'rdp') {
-    // TODO: we could combine these into the same script
-    if (params.species) {
+if (params.reference) {
 
-        speciesFile = file(params.species)
+    if (params.taxassignment == 'rdp') {
+        // TODO: we could combine these into the same script
+        refFile = file(params.reference)
 
-        process AssignTaxSpeciesRDP {
-            tag { "AssignTaxSpeciesRDP" }
+        if (params.species) {
+
+            speciesFile = file(params.species)
+
+            process AssignTaxSpeciesRDP {
+                tag { "AssignTaxSpeciesRDP" }
+                publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
+
+                input:
+                file st from seqTableFinalToTax
+                file ref from refFile
+                file sp from speciesFile
+
+                output:
+                file "tax_final.RDS" into taxFinal,taxTableToTable
+                file "bootstrap_final.RDS" into bootstrapFinal
+
+                when:
+                params.precheck == false
+
+                script:
+                """
+                #!/usr/bin/env Rscript
+                library(dada2)
+                packageVersion("dada2")
+
+                seqtab <- readRDS("${st}")
+
+                # Assign taxonomy
+                tax <- assignTaxonomy(seqtab, "${ref}",
+                                        multithread=${task.cpus},
+                                        tryRC = TRUE,
+                                        outputBootstraps = TRUE,
+                                        verbose = TRUE)
+                boots <- tax\$boot
+
+                tax <- addSpecies(tax\$tax, "${sp}",
+                                 tryRC = TRUE,
+                                 verbose = TRUE)
+
+                # Write original data
+                saveRDS(tax, "tax_final.RDS")
+                saveRDS(boots, "bootstrap_final.RDS")
+                """
+            }
+
+        } else {
+
+            process AssignTaxonomyRDP {
+                tag { "TaxonomyRDP" }
+                publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
+
+                input:
+                file st from seqTableFinalToTax
+                file ref from refFile
+
+                output:
+                file "tax_final.RDS" into taxFinal,taxTableToTable
+                file "bootstrap_final.RDS" into bootstrapFinal
+
+                when:
+                params.precheck == false
+
+                script:
+                """
+                #!/usr/bin/env Rscript
+                library(dada2)
+                packageVersion("dada2")
+
+                seqtab <- readRDS("${st}")
+
+                # Assign taxonomy
+                tax <- assignTaxonomy(seqtab, "${ref}",
+                                      multithread=${task.cpus},
+                                      tryRC = TRUE,
+                                      outputBootstraps = TRUE,
+                                      verbose = TRUE)
+
+                # Write to disk
+                saveRDS(tax\$tax, "tax_final.RDS")
+                saveRDS(tax\$boot, "bootstrap_final.RDS")
+                """
+            }
+        }
+    } else if (params.taxassignment == 'idtaxa') {
+        // Experimental!!! This assigns full taxonomy to species level, but only for
+        // some databases; unknown whether this works with concat sequences.  ITS
+        // doesn't seem to be currently supported
+        process TaxonomyIDTAXA {
+            tag { "TaxonomyIDTAXA" }
             publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
 
             input:
             file st from seqTableFinalToTax
-            file ref from refFile
-            file sp from speciesFile
+            file ref from refFile // this needs to be a database from the IDTAXA site
 
             output:
             file "tax_final.RDS" into taxFinal,taxTableToTable
             file "bootstrap_final.RDS" into bootstrapFinal
+            file "raw_idtaxa.RDS"
 
             when:
             params.precheck == false
@@ -724,140 +805,59 @@ if (params.taxassignment == 'rdp') {
             """
             #!/usr/bin/env Rscript
             library(dada2)
-            packageVersion("dada2")
+            library(DECIPHER)
+            packageVersion("DECIPHER")
 
             seqtab <- readRDS("${st}")
 
-            # Assign taxonomy
-            tax <- assignTaxonomy(seqtab, "${ref}",
-                                    multithread=${task.cpus},
-                                    tryRC = TRUE,
-                                    outputBootstraps = TRUE,
-                                    verbose = TRUE)
-            boots <- tax\$boot
+            # Create a DNAStringSet from the ASVs
+            dna <- DNAStringSet(getSequences(seqtab))
 
-            tax <- addSpecies(tax\$tax, "${sp}",
-                             tryRC = TRUE,
-                             verbose = TRUE)
+            # load database; this should be a RData file
+            load("${refFile}")
 
-            # Write original data
-            saveRDS(tax, "tax_final.RDS")
+            ids <- IdTaxa(dna, trainingSet,
+                strand="both",
+                processors=${task.cpus},
+                verbose=TRUE)
+            # ranks of interest
+            ranks <- c("domain", "phylum", "class", "order", "family", "genus", "species")
+            saveRDS(ids, 'raw_idtaxa.RDS')
+
+            # Convert the output object of class "Taxa" to a matrix analogous to the output from assignTaxonomy
+            taxid <- t(sapply(ids, function(x) {
+                    m <- match(ranks, x\$rank)
+                    taxa <- x\$taxon[m]
+                    taxa[startsWith(taxa, "unclassified_")] <- NA
+                    taxa
+            }))
+            colnames(taxid) <- ranks
+            rownames(taxid) <- getSequences(seqtab)
+
+            boots <- t(sapply(ids, function(x) {
+                    m <- match(ranks, x\$rank)
+                    bs <- x\$confidence[m]
+                    bs
+            }))
+            colnames(boots) <- ranks
+            rownames(boots) <- getSequences(seqtab)
+
+            # Write to disk
+            saveRDS(taxid, "tax_final.RDS")
             saveRDS(boots, "bootstrap_final.RDS")
             """
         }
 
+    } else if (params.taxassignment) {
+        exit 1, "Unknown taxonomic assignment method set: ${params.taxassignment}"
     } else {
-
-        process AssignTaxonomyRDP {
-            tag { "TaxonomyRDP" }
-            publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
-
-            input:
-            file st from seqTableFinalToTax
-            file ref from refFile
-
-            output:
-            file "tax_final.RDS" into taxFinal,taxTableToTable
-            file "bootstrap_final.RDS" into bootstrapFinal
-
-            when:
-            params.precheck == false
-
-            script:
-            """
-            #!/usr/bin/env Rscript
-            library(dada2)
-            packageVersion("dada2")
-
-            seqtab <- readRDS("${st}")
-
-            # Assign taxonomy
-            tax <- assignTaxonomy(seqtab, "${ref}",
-                                  multithread=${task.cpus},
-                                  tryRC = TRUE,
-                                  outputBootstraps = TRUE,
-                                  verbose = TRUE)
-
-            # Write to disk
-            saveRDS(tax\$tax, "tax_final.RDS")
-            saveRDS(tax\$boot, "bootstrap_final.RDS")
-            """
-        }
+        exit 1, "No taxonomic assignment method set, but reference passed"
     }
-} else if (params.taxassignment == 'idtaxa') {
-    // Experimental!!! This assigns full taxonomy to species level, but only for
-    // some databases; unknown whether this works with concat sequences.  ITS
-    // doesn't seem to be currently supported
-    process TaxonomyIDTAXA {
-        tag { "TaxonomyIDTAXA" }
-        publishDir "${params.outdir}/dada2-Chimera-Taxonomy", mode: "copy", overwrite: true
-
-        input:
-        file st from seqTableFinalToTax
-        file ref from refFile // this needs to be a database from the IDTAXA site
-
-        output:
-        file "tax_final.RDS" into taxFinal,taxTableToTable
-        file "bootstrap_final.RDS" into bootstrapFinal
-        file "raw_idtaxa.RDS"
-
-        when:
-        params.precheck == false
-
-        script:
-        """
-        #!/usr/bin/env Rscript
-        library(dada2)
-        library(DECIPHER)
-        packageVersion("DECIPHER")
-
-        seqtab <- readRDS("${st}")
-
-        # Create a DNAStringSet from the ASVs
-        dna <- DNAStringSet(getSequences(seqtab))
-
-        # load database; this should be a RData file
-        load("${refFile}")
-
-        ids <- IdTaxa(dna, trainingSet,
-            strand="both",
-            processors=${task.cpus},
-            verbose=TRUE)
-        # ranks of interest
-        ranks <- c("domain", "phylum", "class", "order", "family", "genus", "species")
-        saveRDS(ids, 'raw_idtaxa.RDS')
-
-        # Convert the output object of class "Taxa" to a matrix analogous to the output from assignTaxonomy
-        taxid <- t(sapply(ids, function(x) {
-                m <- match(ranks, x\$rank)
-                taxa <- x\$taxon[m]
-                taxa[startsWith(taxa, "unclassified_")] <- NA
-                taxa
-        }))
-        colnames(taxid) <- ranks
-        rownames(taxid) <- getSequences(seqtab)
-
-        boots <- t(sapply(ids, function(x) {
-                m <- match(ranks, x\$rank)
-                bs <- x\$confidence[m]
-                bs
-        }))
-        colnames(boots) <- ranks
-        rownames(boots) <- getSequences(seqtab)
-
-        # Write to disk
-        saveRDS(taxid, "tax_final.RDS")
-        saveRDS(boots, "bootstrap_final.RDS")
-        """
-    }
-
-} else if (params.taxassignment) {
-    exit 1, "Unknown taxonomic assignment method set: ${params.taxassignment}"
 } else {
     // set tax channels to 'false', do NOT assign taxonomy
-    taxFinal = false
-    taxTableToTable = false
-    bootstrapFinal = false
+    taxFinal = Channel.empty()
+    taxTableToTable = Channel.empty()
+    bootstrapFinal = Channel.empty()
 }
 
 // Note: this is currently a text dump.  We've found the primary issue with
@@ -871,20 +871,16 @@ if (params.taxassignment == 'rdp') {
 // any downstream steps (e.g. alignment/tree), then munge the seq names back
 // from the mapping table
 
-process GenerateTables {
-    tag { "GenerateTables" }
+process GenerateSeqTables {
+    tag { "GenerateSeqTables" }
     publishDir "${params.outdir}/dada2-Tables", mode: "link", overwrite: true
 
     input:
     file st from seqTableToTable
-    file tax from taxTableToTable
-    file bt from bootstrapFinal
 
     output:
-    file "seqtab_final.simple.RDS" into seqtabToPhyloseq
-    file "tax_final.simple.RDS" into taxtabToPhyloseq
+    file "seqtab_final.simple.RDS" into seqtabToPhyloseq,seqtabToTaxTable
     file "asvs.simple.fna" into seqsToAln, seqsToQIIME2 // this will likely be used downstream for alignment and analysis
-    file "tax_final.simple.txt" into taxtableToQIIME2
     file "seqtab_final.simple.qiime2.txt" into featuretableToQIIME2
     file "*.txt"
 
@@ -898,7 +894,6 @@ process GenerateTables {
     library(ShortRead)
 
     seqtab <- readRDS("${st}")
-    tax <- readRDS("${tax}")
 
     if (as.logical('${params.sampleRegex}' != FALSE )) {
         rownames(seqtab) <- gsub('${params.sampleRegex}', "\\\\1", rownames(seqtab), perl = TRUE)
@@ -910,12 +905,6 @@ process GenerateTables {
         row.names = FALSE,
         col.names=c('#SampleID', colnames(seqtab)), sep = "\t")
 
-    # Note that we use the old OTU ID for output here
-    write.table(data.frame('ASVID' = row.names(tax), tax),
-        file = 'tax_final.txt',
-        row.names = FALSE,
-        col.names=c('#OTU ID', colnames(tax)), sep = "\t")
-
     ######################################################################
     # Convert to simple table + FASTA, from
     # https://github.com/LangilleLab/microbiome_helper/blob/master/convert_dada2_out.R#L69
@@ -925,9 +914,6 @@ process GenerateTables {
     seqs <- colnames(seqtab)
     ids_study <- paste("ASV", 1:ncol(seqtab), sep = "")
     colnames(seqtab) <- ids_study
-
-    # this may bite us, very format-specific (UIUC Seq core); maybe a mapping file?
-    rownames(seqtab) <- gsub('.R1.filtered.fastq.gz', '',rownames(seqtab))
 
     # Generate OTU table output (rows = samples, cols = ASV)
     write.table(data.frame('SampleID' = row.names(seqtab), seqtab),
@@ -948,6 +934,46 @@ process GenerateTables {
     seqs.dna <- ShortRead(sread = DNAStringSet(seqs), id = BStringSet(ids_study))
     # Write out fasta file.
     writeFasta(seqs.dna, file = 'asvs.simple.fna')
+
+    # Write modified data
+    saveRDS(seqtab, "seqtab_final.simple.RDS")
+    """
+}
+
+process GenerateTaxTables {
+    tag { "GenerateTaxTables" }
+    publishDir "${params.outdir}/dada2-Tables", mode: "link", overwrite: true
+
+    input:
+    file st from seqtabToTaxTable
+    file tax from taxTableToTable
+    file bt from bootstrapFinal
+
+    output:
+    file "tax_final.simple.RDS" into taxtabToPhyloseq
+    file "tax_final.simple.txt" into taxtableToQIIME2
+    file "*.txt"
+
+    when:
+    params.precheck == false
+
+    script:
+    """
+    #!/usr/bin/env Rscript
+    library(dada2)
+    library(ShortRead)
+
+    seqtab <- readRDS("${st}")
+    tax <- readRDS("${tax}")
+
+    # Note that we use the old ASV ID for output here
+    write.table(data.frame('ASVID' = row.names(tax), tax),
+        file = 'tax_final.txt',
+        row.names = FALSE,
+        col.names=c('#OTU ID', colnames(tax)), sep = "\t")
+
+    # replace names
+    seqs <- colnames(seqtab)
 
     # Tax table
     if(!identical(rownames(tax), seqs)){
@@ -983,7 +1009,6 @@ process GenerateTables {
     }
 
     # Write modified data
-    saveRDS(seqtab, "seqtab_final.simple.RDS")
     saveRDS(tax, "tax_final.simple.RDS")
     """
 }

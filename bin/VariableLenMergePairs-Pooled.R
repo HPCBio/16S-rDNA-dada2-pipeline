@@ -10,14 +10,14 @@ option_list = list(
 
     make_option(c("--minOverlap"), type="numeric", help="Min overlap"),
     make_option(c("--maxMismatch"), type="numeric", help="Max mismatch"),
-    make_option(c("--trimOverhang"), default=FALSE, action="store_true", help="Trim overhanging sequence if overlapping")
-    make_option(c("--justConcatenate"), default=FALSE, action="store_true", help="Just concatenate sequences")
+    make_option(c("--trimOverhang"), default=FALSE, action="store_true", help="Trim overhanging sequence if overlapping"),
+    make_option(c("--justConcatenate"), default=FALSE, action="store_true", help="Just concatenate sequences"),
     make_option(c("--rescueUnmerged"), default=FALSE, action="store_true", help="Rescue unmerged sequences")
 )
 
 opt <- parse_args(OptionParser(option_list=option_list))
 
-# Note: this is a modified copy of the default mergePairs() method; this will
+# Note: this is a modified copy of the default mergePairs() method; this can
 # retain unmerged reads in case they don't overlap (this happens with some
 # amplicon like ITS).  MAY BE REMOVED IN THE FUTURE
 
@@ -40,8 +40,8 @@ mergePairsRescue <- function(dadaF, derepF, dadaR, derepR,
   if(length(unique(nrecs))>1) stop("The dadaF/derepF/dadaR/derepR arguments must be the same length.")
 
   rval <- lapply(seq_along(dadaF), function (i)  {
-    mapF <- getDerep(derepF[[i]])$map
-    mapR <- getDerep(derepR[[i]])$map
+    mapF <- derepF[[i]]$map
+    mapR <- derepR[[i]]$map
     if(!(is.integer(mapF) && is.integer(mapR))) stop("Incorrect format of $map in derep-class arguments.")
     #    if(any(is.na(rF)) || any(is.na(rR))) stop("Non-corresponding maps and dada-outputs.")
     if(!(length(mapF) == length(mapR) && max(mapF) == length(dadaF[[i]]$map) &&
@@ -144,7 +144,7 @@ filtRs <- list.files('.', pattern="R2.filtered.fastq.gz", full.names = TRUE)
 
 errF <- readRDS(opt$errFor)
 errR <- readRDS(opt$errRev)
-cat("Processing all samples\\n")
+cat("Processing all samples\n")
 
 #Variable selection from CLI input flag --pool
 pool <- opt$pool
@@ -160,12 +160,13 @@ derepRs <- derepFastq(filtRs)
 
 ddRs <- dada(derepRs, err=errR, multithread=opt$cpus, pool=pool)
 
-mergers <- mergePairs(ddFs, derepFs, ddRs, derepRs,
+mergers <- mergePairsRescue(ddFs, derepFs, ddRs, derepRs,
     returnRejects = TRUE,
     minOverlap = opt$minOverlap,
     maxMismatch = opt$maxMismatch,
     trimOverhang = as.logical(opt$trimOverhang),
-    justConcatenate = as.logical(opt$justConcatenate)
+    justConcatenate = as.logical(opt$justConcatenate),
+    rescueUnmerged = as.logical(opt$rescueUnmerged)
     )
 
 # TODO: make this a single item list with ID as the name, this is lost
@@ -180,6 +181,5 @@ saveRDS(derepRs, "all.derepRs.RDS")
 
 # go ahead and make seqtable
 seqtab <- makeSequenceTable(mergers)
-seqtab <- seqtab[,nchar(colnames(seqtab)) >= ${params.minLen}]
 
 saveRDS(seqtab, "seqtab.RDS")
