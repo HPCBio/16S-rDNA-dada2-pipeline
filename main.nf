@@ -407,6 +407,7 @@ process LearnErrorsFor {
 
     output:
     file "errorsF.RDS" into errorsFor
+    file "*.pdf"
 
     when:
     params.precheck == false
@@ -440,6 +441,7 @@ process LearnErrorsRev {
 
     output:
     file "errorsR.RDS" into errorsRev
+    file "*.pdf"
 
     when:
     params.precheck == false
@@ -880,8 +882,9 @@ process GenerateSeqTables {
 
     output:
     file "seqtab_final.simple.RDS" into seqtabToPhyloseq,seqtabToTaxTable
-    file "asvs.simple.fna" into seqsToAln, seqsToQIIME2 // this will likely be used downstream for alignment and analysis
+    file "asvs.simple.fna" into seqsToAln, seqsToQIIME2
     file "seqtab_final.simple.qiime2.txt" into featuretableToQIIME2
+    file "asvs.mapping.txt" into seqsToTaxTable
     file "*.txt"
 
     when:
@@ -923,6 +926,7 @@ process GenerateSeqTables {
         sep = "\t")
 
     # Generate OTU table for QIIME2 import (rows = ASVs, cols = samples)
+    # TODO: split out into or move to separate process when QIIME2 is requested
     write.table(
         data.frame('Taxa' = colnames(seqtab), t(seqtab)),
         file = 'seqtab_final.simple.qiime2.txt',
@@ -934,6 +938,14 @@ process GenerateSeqTables {
     seqs.dna <- ShortRead(sread = DNAStringSet(seqs), id = BStringSet(ids_study))
     # Write out fasta file.
     writeFasta(seqs.dna, file = 'asvs.simple.fna')
+
+    # generate ASV(sequence) -> ID mapping table
+    write.table(
+        data.frame('ASV' = seqs, 'ASVID' = ids_study),
+        file = 'asvs.mapping.txt',
+        row.names = FALSE,
+        quote=FALSE,
+        sep = "\t")
 
     # Write modified data
     saveRDS(seqtab, "seqtab_final.simple.RDS")
@@ -948,6 +960,7 @@ process GenerateTaxTables {
     file st from seqtabToTaxTable
     file tax from taxTableToTable
     file bt from bootstrapFinal
+    file mapping from seqsToTaxTable
 
     output:
     file "tax_final.simple.RDS" into taxtabToPhyloseq
@@ -965,6 +978,7 @@ process GenerateTaxTables {
 
     seqtab <- readRDS("${st}")
     tax <- readRDS("${tax}")
+    seqs <- read.table("${mapping}")
 
     # Note that we use the old ASV ID for output here
     write.table(data.frame('ASVID' = row.names(tax), tax),
